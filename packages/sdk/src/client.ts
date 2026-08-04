@@ -1,6 +1,7 @@
 import { HashpassAuth, MemorySessionStore } from "./auth/client.js";
 import { HashpassError } from "./errors.js";
 import { SupportClient } from "./support/client.js";
+import { CollectiblesClient } from "./collectibles/client.js";
 import { HttpTransport } from "./transport.js";
 import type { HashpassEnvironment, HashpassSdkOptions } from "./types.js";
 
@@ -13,6 +14,7 @@ const ENVIRONMENT_URLS: Record<HashpassEnvironment, string> = {
 export class HashpassClient {
   readonly support: SupportClient;
   readonly auth: HashpassAuth;
+  readonly collectibles: CollectiblesClient;
 
   constructor(options: HashpassSdkOptions) {
     validateOptions(options);
@@ -32,6 +34,7 @@ export class HashpassClient {
     this.auth = new HashpassAuth(authTransport, options.sessionStore ?? new MemorySessionStore());
     const transport = new HttpTransport({ ...shared, auth: options.auth ?? this.auth });
     this.support = new SupportClient(transport);
+    this.collectibles = new CollectiblesClient(transport as any);
   }
 }
 

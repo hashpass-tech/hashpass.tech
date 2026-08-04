@@ -4,10 +4,11 @@ import { useTheme } from '../../../hooks/useTheme';
 import BlockchainTokensView from '../../../components/BlockchainTokensView';
 import HashPointsView from '../../../components/HashPointsView';
 import BlockchainTicketsView from '../../../components/BlockchainTicketsView';
+import MomentsWallet from '../../../components/moments/MomentsWallet';
 import { useTranslation } from '../../../i18n/i18n';
 import { useScroll } from '@contexts/ScrollContext';
 
-type TabType = 'tokens' | 'points' | 'tickets';
+type TabType = 'tokens' | 'points' | 'tickets' | 'moments';
 
 const WalletScreen = () => {
   const { colors, isDark } = useTheme();
@@ -28,6 +29,8 @@ const WalletScreen = () => {
         return <HashPointsView />;
       case 'tickets':
         return <BlockchainTicketsView />;
+      case 'moments':
+        return <MomentsWallet />;
       default:
         return <BlockchainTokensView />;
     }
@@ -83,6 +86,17 @@ const WalletScreen = () => {
                 {t("tabs.tickets")}
               </Text>
               {activeTab === 'tickets' && <View style={styles.tabIndicator} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tab}
+              onPress={() => setActiveTab('moments')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabText, activeTab === 'moments' && styles.activeTabText]}>
+                Moments
+              </Text>
+              {activeTab === 'moments' && <View style={styles.tabIndicator} />}
             </TouchableOpacity>
           </View>
           <View style={styles.tabDivider} />

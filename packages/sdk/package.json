@@ -18,6 +18,10 @@
     "./support": {
       "types": "./dist/support/index.d.ts",
       "import": "./dist/support/index.js"
+    },
+    "./collectibles": {
+      "types": "./dist/collectibles/index.d.ts",
+      "import": "./dist/collectibles/index.js"
     }
   },
   "files": [

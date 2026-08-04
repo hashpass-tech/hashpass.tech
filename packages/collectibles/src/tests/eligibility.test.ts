@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { selectBestCredential } from '../eligibility.js';
+test('verified check-in wins eligibility precedence', () => { const best = selectBestCredential([{ id:'2', eventId:'e', userId:'u', role:'speaker', attendanceStatus:'verified', verificationMethod:'verified_event_role', verifiedAt:'now' }, { id:'1', eventId:'e', userId:'u', role:'attendee', attendanceStatus:'verified', verificationMethod:'hashpass_check_in', verifiedAt:'now' }]); assert.equal(best?.id, '1'); });

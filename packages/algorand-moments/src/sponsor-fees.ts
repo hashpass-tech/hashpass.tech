@@ -1,0 +1,1 @@
+export class SponsorFeeGuard { private spent = 0; constructor(private limit: number) {} reserve(amount: number) { if (amount <= 0) throw new Error('amount must be positive'); if (this.spent + amount > this.limit) throw new Error('sponsor spending limit exceeded'); this.spent += amount; return this.spent; } }
