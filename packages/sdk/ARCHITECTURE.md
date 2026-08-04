@@ -43,3 +43,7 @@ Before production enablement, publish an OpenAPI document, generate contract fix
 Both packages intentionally share one version. Run `pnpm sdk:version <semver>`, review and commit the two manifest changes, then create a signed `sdk-cli-v<semver>` tag. The release workflow verifies tag/package parity, installs from the lockfile, typechecks, tests, inspects tarballs, publishes the core package before the CLI with npm provenance, and finally creates the GitHub release. A manual workflow dispatch is dry-run-only by default and cannot accidentally publish an untagged commit.
 
 The npm environment should use npm trusted publishing with this exact GitHub workflow. If the organization temporarily uses an npm automation token, configure it only as an environment secret and never in repository files or logs.
+
+## x402 transport
+
+`X402Client` is a peer of `auth` and `support` and reuses `HttpTransport`. A first request discovers an HTTP 402 requirement; a caller-injected wallet callback authorizes it; the client retries the same body with the same `Idempotency-Key`. Domain response types remain payment-provider independent.

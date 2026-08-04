@@ -1,6 +1,6 @@
 {
   "name": "hashpass-mobile-app",
-  "version": "1.8.319",
+  "version": "1.8.320",
   "private": true,
   "packageManager": "pnpm@9.15.5",
   "main": "index.js",
@@ -162,7 +162,8 @@
     "three": "^0.183.1",
     "twrnc": "^4.9.1",
     "workbox-cli": "^7.1.0",
-    "xstate": "^5.32.5"
+    "xstate": "^5.32.5",
+    "@hashpass/x402-event-agent": "workspace:*"
   },
   "devDependencies": {
     "@babel/preset-typescript": "^7.28.5",

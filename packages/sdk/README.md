@@ -46,3 +46,14 @@ The device authorization flow used by headless clients is available through `has
 - Mutations accept idempotency keys; safe requests retry transient failures with bounded exponential backoff.
 - API failures use a typed `HashpassError` and may include HTTP status, request ID, and structured details.
 - Live support uses cursor-based polling for universal runtime support and can later be upgraded internally to SSE/WebSocket without changing event types.
+
+## x402 event-agent services
+
+The SDK preserves one idempotency key across the unpaid `402` challenge and paid retry. Supply an `x402Payment` callback globally or per request; it receives the parsed payment requirements and returns request headers created by your Algorand wallet transport.
+
+```ts
+const hashpass = createHashpass({ appId: "my-agent", environment: "development", x402Payment: wallet.authorize });
+const plan = await hashpass.x402.getEventConcierge({ eventId: "chile2026", interests: ["AI", "stablecoins"], goals: ["meet investors"], availableFrom: "10:00", availableUntil: "17:00" });
+```
+
+Authorization headers are never logged by the SDK. CLI support is intentionally deferred until the Testnet wallet UX is finalized.

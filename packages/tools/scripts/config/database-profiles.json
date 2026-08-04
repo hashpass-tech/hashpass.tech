@@ -3,25 +3,55 @@
     "core-development": {
       "tenant": "core",
       "environment": "development",
-      "databaseUrlEnv": ["SUPABASE_DB_URL_DEV", "DATABASE_URL_DEV", "DEV_DB_URL"]
+      "databaseUrlEnv": [
+        "SUPABASE_DB_URL_DEV",
+        "DATABASE_URL_DEV",
+        "DEV_DB_URL"
+      ]
     },
     "core-production": {
       "tenant": "core",
       "environment": "production",
-      "databaseUrlEnv": ["SUPABASE_DB_URL_PROD", "DATABASE_URL_PROD", "PROD_DB_URL"]
+      "databaseUrlEnv": [
+        "SUPABASE_DB_URL_PROD",
+        "DATABASE_URL_PROD",
+        "PROD_DB_URL"
+      ]
     },
     "bsl-development": {
       "tenant": "bsl",
       "environment": "development",
-      "databaseUrlEnv": ["BSL_SUPABASE_DB_URL_DEV", "SUPABASE_DB_URL_BSL_DEV", "DATABASE_URL_BSL_DEV", "DEV_BSL_DB_URL", "SUPABASE_DB_URL_DEV"]
+      "databaseUrlEnv": [
+        "BSL_SUPABASE_DB_URL_DEV",
+        "SUPABASE_DB_URL_BSL_DEV",
+        "DATABASE_URL_BSL_DEV",
+        "DEV_BSL_DB_URL",
+        "SUPABASE_DB_URL_DEV"
+      ]
     },
     "bsl-production": {
       "tenant": "bsl",
       "environment": "production",
-      "databaseUrlEnv": ["BSL_SUPABASE_DB_URL_PROD", "SUPABASE_DB_URL_BSL_PROD", "DATABASE_URL_BSL_PROD", "PROD_BSL_DB_URL"]
+      "databaseUrlEnv": [
+        "BSL_SUPABASE_DB_URL_PROD",
+        "SUPABASE_DB_URL_BSL_PROD",
+        "DATABASE_URL_BSL_PROD",
+        "PROD_BSL_DB_URL"
+      ]
     }
   },
-  "defaultGroups": ["rls-hardening", "upcoming-bsl-passes", "meeting-lifecycle", "event-catalog", "speaker-identity-claims", "event-pass-tiers", "admin-pass-management", "meeting-chat-e2e", "admin-matchmaking-communications"],
+  "defaultGroups": [
+    "rls-hardening",
+    "upcoming-bsl-passes",
+    "meeting-lifecycle",
+    "event-catalog",
+    "speaker-identity-claims",
+    "event-pass-tiers",
+    "admin-pass-management",
+    "meeting-chat-e2e",
+    "admin-matchmaking-communications",
+    "x402-event-agent"
+  ],
   "groups": {
     "meeting-chat-e2e": [
       "db/migrations/V053__e2e_encrypted_persistent_meeting_chat.sql",
@@ -33,7 +63,9 @@
       "db/migrations/V057__admin_event_scoped_attendees.sql"
     ],
     "core": ["apps/mobile-app/db/migrations/V001__init_core_schema.sql"],
-    "events": ["apps/mobile-app/db/migrations/V002__meeting_requests_system.sql"],
+    "events": [
+      "apps/mobile-app/db/migrations/V002__meeting_requests_system.sql"
+    ],
     "security": ["apps/mobile-app/db/migrations/V003__row_level_security.sql"],
     "wallet": ["apps/mobile-app/db/migrations/V004__wallet_auth.sql"],
     "auth": ["apps/mobile-app/db/migrations/V005__otp_codes.sql"],
@@ -87,6 +119,7 @@
     ],
     "admin-pass-management": [
       "db/migrations/V041__admin_pass_and_user_listing.sql"
-    ]
+    ],
+    "x402-event-agent": ["db/migrations/V059__x402_service_requests.sql"]
   }
 }

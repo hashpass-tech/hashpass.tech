@@ -1,8 +1,10 @@
+import type { PaymentCallback } from "./x402/types.js";
 import type { AuthSessionStore } from "./auth/types.js";
 
 export type HashpassEnvironment = "production" | "development" | "local";
 
 export interface HashpassSdkOptions {
+  x402Payment?: PaymentCallback;
   /** Public application identifier issued by Hashpass. Never put a client secret here. */
   appId: string;
   environment?: HashpassEnvironment | undefined;

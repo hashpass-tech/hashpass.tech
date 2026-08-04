@@ -1,6 +1,7 @@
 import { HashpassAuth, MemorySessionStore } from "./auth/client.js";
 import { HashpassError } from "./errors.js";
 import { SupportClient } from "./support/client.js";
+import { X402Client } from "./x402/client.js";
 import { HttpTransport } from "./transport.js";
 import type { HashpassEnvironment, HashpassSdkOptions } from "./types.js";
 
@@ -13,15 +14,20 @@ const ENVIRONMENT_URLS: Record<HashpassEnvironment, string> = {
 export class HashpassClient {
   readonly support: SupportClient;
   readonly auth: HashpassAuth;
+  readonly x402: X402Client;
 
   constructor(options: HashpassSdkOptions) {
     validateOptions(options);
     const fetchImplementation = options.fetch ?? globalThis.fetch;
     if (!fetchImplementation) {
-      throw new HashpassError("A Fetch API implementation is required", { code: "configuration_error" });
+      throw new HashpassError("A Fetch API implementation is required", {
+        code: "configuration_error",
+      });
     }
     const shared = {
-      baseUrl: options.baseUrl ?? ENVIRONMENT_URLS[options.environment ?? "production"],
+      baseUrl:
+        options.baseUrl ??
+        ENVIRONMENT_URLS[options.environment ?? "production"],
       appId: options.appId,
       fetch: fetchImplementation,
       headers: options.headers,
@@ -29,19 +35,33 @@ export class HashpassClient {
       retry: options.retry,
     };
     const authTransport = new HttpTransport(shared);
-    this.auth = new HashpassAuth(authTransport, options.sessionStore ?? new MemorySessionStore());
-    const transport = new HttpTransport({ ...shared, auth: options.auth ?? this.auth });
+    this.auth = new HashpassAuth(
+      authTransport,
+      options.sessionStore ?? new MemorySessionStore(),
+    );
+    const transport = new HttpTransport({
+      ...shared,
+      auth: options.auth ?? this.auth,
+    });
     this.support = new SupportClient(transport);
+    this.x402 = new X402Client(transport, options.x402Payment);
   }
 }
 
 function validateOptions(options: HashpassSdkOptions): void {
   if (!options.appId?.trim()) {
-    throw new HashpassError("appId is required", { code: "configuration_error" });
+    throw new HashpassError("appId is required", {
+      code: "configuration_error",
+    });
   }
   if (options.baseUrl) {
-    try { new URL(options.baseUrl); } catch (cause) {
-      throw new HashpassError("baseUrl must be an absolute URL", { code: "configuration_error", cause });
+    try {
+      new URL(options.baseUrl);
+    } catch (cause) {
+      throw new HashpassError("baseUrl must be an absolute URL", {
+        code: "configuration_error",
+        cause,
+      });
     }
   }
 }
