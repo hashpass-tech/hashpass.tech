@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info:
+  title: HashPass Support API
+  version: 0.1.0
+  description: Foundational customer, admin, and Kapso integration contract for HashPass Support.
+paths:
+  /v1/support/sessions:
+    post:
+      summary: Create or identify a scoped support session
+      responses: { '200': { description: Support session } }
+  /v1/support/widget-config:
+    get:
+      summary: Return public widget configuration for an app ID
+      responses: { '200': { description: Widget configuration } }
+  /v1/support/tickets:
+    get:
+      summary: List support tickets visible to the caller
+      responses: { '200': { description: Cursor page of tickets } }
+    post:
+      summary: Create a support ticket and enqueue administrator notification
+      responses: { '201': { description: Created ticket } }
+  /v1/support/tickets/{ticketId}:
+    get:
+      summary: Get a support ticket
+      responses: { '200': { description: Ticket } }
+    patch:
+      summary: Update public ticket status such as resolved or reopened
+      responses: { '200': { description: Updated ticket } }
+  /v1/support/tickets/{ticketId}/messages:
+    get:
+      summary: List customer-visible ticket messages
+      responses: { '200': { description: Cursor page of messages } }
+    post:
+      summary: Create a customer message
+      responses: { '201': { description: Created message } }
+  /v1/support/tickets/{ticketId}/handoff:
+    post:
+      summary: Request human support
+      responses: { '200': { description: Updated ticket } }
+  /v1/support/tickets/{ticketId}/events:
+    get:
+      summary: Poll cursor-ordered support events
+      responses: { '200': { description: Event page } }
+  /v1/support/tickets/{ticketId}/read:
+    post:
+      summary: Mark ticket events read through a cursor
+      responses: { '200': { description: Updated ticket } }
+  /v1/integrations/kapso/webhook:
+    post:
+      summary: Receive Kapso webhooks with raw-body HMAC verification and idempotency
+      responses: { '200': { description: Accepted or duplicate } }
+  /v1/integrations/kapso/health:
+    get:
+      summary: Authenticated Kapso integration health
+      responses: { '200': { description: Health status } }
+  /v1/integrations/kapso/test:
+    post:
+      summary: Privileged sandbox test send; disabled for production by default
+      responses: { '202': { description: Test enqueued } }
+  /v1/admin/support/tickets:
+    get:
+      summary: Admin ticket list
+      responses: { '200': { description: Admin ticket page } }
+  /v1/admin/support/tickets/{ticketId}:
+    get:
+      summary: Admin ticket detail
+      responses: { '200': { description: Admin ticket } }
+  /v1/admin/support/tickets/{ticketId}/assign:
+    post:
+      summary: Assign or claim a ticket
+      responses: { '200': { description: Updated assignment } }
+  /v1/admin/support/tickets/{ticketId}/drafts:
+    post:
+      summary: Create an AI draft proposal for human approval
+      responses: { '202': { description: Draft generation enqueued } }
+  /v1/admin/support/drafts/{draftId}/approve:
+    post:
+      summary: Approve current draft and create exactly one customer-visible agent message
+      responses: { '200': { description: Approved draft } }
+  /v1/admin/support/drafts/{draftId}/reject:
+    post:
+      summary: Reject a draft without creating a customer-visible message
+      responses: { '200': { description: Rejected draft } }

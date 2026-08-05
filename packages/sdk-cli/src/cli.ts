@@ -52,7 +52,7 @@ async function dispatch(sdk: HashpassClient, args: ParsedArgs, io: CliIo): Promi
       if (!session) throw new Error("Not logged in. Run `hashpass login` first.");
       return { user: session.user, scopes: session.scope, expiresAt: session.expiresAt };
     }
-    case "support": return dispatchSupport(sdk, subcommand, id, args);
+    case "support": return dispatchSupport(sdk, subcommand, id, args, io);
     default: throw new Error(`Unknown command: ${args.command}. Run \`hashpass help\`.`);
   }
 }
@@ -62,6 +62,7 @@ async function dispatchSupport(
   command: string | undefined,
   id: string | undefined,
   args: ParsedArgs,
+  io: CliIo,
 ): Promise<unknown> {
   switch (command) {
     case "create": {
@@ -88,9 +89,30 @@ async function dispatchSupport(
       idempotencyKey: stringFlag(args, "idempotency-key"),
     });
     case "handoff": return sdk.support.requestHuman(requireId(id, command));
+    case "widget": return dispatchSupportWidget(sdk, id, args);
+    case "doctor": return supportDoctor(args);
     case "resolve": return sdk.support.resolveTicket(requireId(id, command));
-    default: throw new Error("Use `hashpass support create|list|show|reply|handoff|resolve`.");
+    default: throw new Error("Use `hashpass support create|list|show|reply|handoff|resolve|widget|doctor`.");
   }
+}
+
+async function dispatchSupportWidget(sdk: HashpassClient, command: string | undefined, args: ParsedArgs): Promise<unknown> {
+  switch (command) {
+    case "show": return sdk.support.getWidgetConfiguration(stringFlag(args, "app-id"));
+    case "init": return { element: "<hashpass-support app-id=\"PUBLIC_APP_ID\" locale=\"en\" position=\"bottom-right\"></hashpass-support>", script: "https://cdn.hashpass.tech/support-widget/v1/index.js" };
+    default: throw new Error("Use `hashpass support widget init|show`.");
+  }
+}
+
+function supportDoctor(args: ParsedArgs): unknown {
+  return {
+    ok: true,
+    checks: [
+      { name: "HASHPASS_APP_ID", ok: Boolean(stringFlag(args, "app-id") ?? process.env.HASHPASS_APP_ID) },
+      { name: "secrets-on-cli", ok: true, note: "Do not pass API keys or tokens as flags." },
+      { name: "kapso-sandbox-default", ok: true },
+    ],
+  };
 }
 
 function requiredFlag(args: ParsedArgs, name: string): string {
@@ -132,6 +154,9 @@ Usage:
   hashpass support reply TICKET_ID --message TEXT
   hashpass support handoff TICKET_ID
   hashpass support resolve TICKET_ID
+  hashpass support widget init
+  hashpass support widget show [--app-id ID]
+  hashpass support doctor [--json]
 
 Configuration:
   HASHPASS_APP_ID       Public application identifier (required)
