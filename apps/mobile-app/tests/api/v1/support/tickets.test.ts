@@ -123,3 +123,58 @@ describe('POST /api/v1/support/tickets', () => {
     expect(mockRpc).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('GET /api/v1/support/tickets', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    mockRpc.mockReset();
+    mockResolveSupportSession.mockReset();
+  });
+
+  function listRequest(query = '') {
+    return new Request(`https://api.hashpass.tech/api/v1/support/tickets${query}`, {
+      headers: { 'x-hashpass-app-id': 'core' },
+    });
+  }
+
+  it('returns 401 with no session', async () => {
+    mockResolveSupportSession.mockResolvedValue(null);
+    const { GET } = require('../../../../app/api/v1/support/tickets+api');
+    const response = await GET(listRequest());
+    expect(response.status).toBe(401);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('lists the caller’s tickets with keyset pagination, trimming the lookahead row', async () => {
+    mockResolveSupportSession.mockResolvedValue(SESSION);
+    mockRpc.mockResolvedValue({
+      data: [
+        { id: 't1', subject: 'A', status: 'open', priority: 'normal', created_at: 't1', updated_at: 't3' },
+        { id: 't2', subject: 'B', status: 'open', priority: 'normal', created_at: 't1', updated_at: 't2' },
+      ],
+      error: null,
+    });
+
+    const { GET } = require('../../../../app/api/v1/support/tickets+api');
+    const response = await GET(listRequest('?status=open&limit=1'));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.nextCursor).toBe('t1');
+    expect(mockRpc).toHaveBeenCalledWith(
+      'list_support_tickets_for_visitor',
+      expect.objectContaining({ p_visitor_id: 'visitor-1', p_status: 'open', p_limit: 2 }),
+    );
+  });
+
+  it('returns 500 when the database call fails', async () => {
+    mockResolveSupportSession.mockResolvedValue(SESSION);
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+
+    const { GET } = require('../../../../app/api/v1/support/tickets+api');
+    const response = await GET(listRequest());
+
+    expect(response.status).toBe(500);
+  });
+});
