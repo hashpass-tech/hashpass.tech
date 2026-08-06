@@ -1,3 +1,4 @@
+import type { HashpassAuth } from "../auth/client.js";
 import type { HttpTransport } from "../transport.js";
 import type {
   CreateTicketInput,
@@ -17,7 +18,7 @@ import type {
 } from "./types.js";
 
 export class SupportClient {
-  constructor(private readonly transport: HttpTransport) {}
+  constructor(private readonly transport: HttpTransport, private readonly auth?: HashpassAuth) {}
 
   createTicket(input: CreateTicketInput): Promise<SupportTicket> {
     const { idempotencyKey, ...body } = input;
@@ -38,17 +39,29 @@ export class SupportClient {
     });
   }
 
-  createSupportSession(): Promise<SupportSession> {
-    return this.transport.request("v1/support/sessions", { method: "POST", body: {}, authenticated: false });
+  async createSupportSession(): Promise<SupportSession> {
+    const session = await this.transport.request<SupportSession>("v1/support/sessions", {
+      method: "POST",
+      body: {},
+      authenticated: false,
+    });
+    await this.auth?.adoptSupportSession(session);
+    return session;
   }
 
   getWidgetConfiguration(appId?: string): Promise<WidgetConfiguration> {
     return this.transport.request("v1/support/widget-config", { query: { appId }, authenticated: false });
   }
 
-  identifySupportVisitor(input: IdentifySupportVisitorInput): Promise<SupportSession> {
+  async identifySupportVisitor(input: IdentifySupportVisitorInput): Promise<SupportSession> {
     const { idempotencyKey, ...body } = input;
-    return this.transport.request("v1/support/sessions", { method: "POST", body: { identity: body }, idempotencyKey });
+    const session = await this.transport.request<SupportSession>("v1/support/sessions", {
+      method: "POST",
+      body: { identity: body },
+      idempotencyKey,
+    });
+    await this.auth?.adoptSupportSession(session);
+    return session;
   }
 
   listMessages(ticketId: string, input: ListMessagesInput = {}): Promise<import("./types.js").MessagePage> {

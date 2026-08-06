@@ -1,8 +1,12 @@
 openapi: 3.1.0
 info:
   title: HashPass Support API
-  version: 0.1.0
-  description: Foundational customer, admin, and Kapso integration contract for HashPass Support.
+  version: 0.2.0
+  description: >
+    HashPass Support contract. Paths marked "Not implemented yet" below are
+    contract-only -- see docs/support/architecture.md's "What is still
+    deliberately not built" section for why. Every other path is a real,
+    tested route backed by db/migrations/V063__support_system.sql.
 paths:
   /v1/support/sessions:
     post:
@@ -17,7 +21,7 @@ paths:
       summary: List support tickets visible to the caller
       responses: { '200': { description: Cursor page of tickets } }
     post:
-      summary: Create a support ticket and enqueue administrator notification
+      summary: Create a support ticket; requires a support session and sends (not enqueues -- no queue exists) an admin notification email if SUPPORT_ADMIN_NOTIFICATION_EMAIL is configured
       responses: { '201': { description: Created ticket } }
   /v1/support/tickets/{ticketId}:
     get:
@@ -47,37 +51,37 @@ paths:
       responses: { '200': { description: Updated ticket } }
   /v1/integrations/kapso/webhook:
     post:
-      summary: Receive Kapso webhooks with raw-body HMAC verification and idempotency
+      summary: Receive Kapso webhooks with raw-body HMAC verification and idempotent persistence; does not process/reply (no worker exists yet)
       responses: { '200': { description: Accepted or duplicate } }
   /v1/integrations/kapso/health:
     get:
-      summary: Authenticated Kapso integration health
+      summary: authorizeGlobalAdmin-gated Kapso integration health (secret configured?, unprocessed inbound event count)
       responses: { '200': { description: Health status } }
   /v1/integrations/kapso/test:
     post:
-      summary: Privileged sandbox test send; disabled for production by default
+      summary: "Not implemented yet: privileged sandbox test send; disabled for production by default"
       responses: { '202': { description: Test enqueued } }
   /v1/admin/support/tickets:
     get:
-      summary: Admin ticket list
+      summary: Admin ticket list (authorizeGlobalAdmin-gated, keyset-paginated, optional appId/status filters)
       responses: { '200': { description: Admin ticket page } }
   /v1/admin/support/tickets/{ticketId}:
     get:
-      summary: Admin ticket detail
+      summary: Admin ticket detail with its full message history and visitor identity
       responses: { '200': { description: Admin ticket } }
   /v1/admin/support/tickets/{ticketId}/assign:
     post:
-      summary: Assign or claim a ticket
+      summary: "Not implemented yet: assign or claim a ticket"
       responses: { '200': { description: Updated assignment } }
   /v1/admin/support/tickets/{ticketId}/drafts:
     post:
-      summary: Create an AI draft proposal for human approval
+      summary: "Not implemented yet: create an AI draft proposal for human approval"
       responses: { '202': { description: Draft generation enqueued } }
   /v1/admin/support/drafts/{draftId}/approve:
     post:
-      summary: Approve current draft and create exactly one customer-visible agent message
+      summary: "Not implemented yet: approve current draft and create exactly one customer-visible agent message"
       responses: { '200': { description: Approved draft } }
   /v1/admin/support/drafts/{draftId}/reject:
     post:
-      summary: Reject a draft without creating a customer-visible message
+      summary: "Not implemented yet: reject a draft without creating a customer-visible message"
       responses: { '200': { description: Rejected draft } }

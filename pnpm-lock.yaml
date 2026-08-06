@@ -517,6 +517,9 @@ importers:
       '@hashpass/emails':
         specifier: workspace:*
         version: link:../../packages/emails
+      '@hashpass/support-kapso':
+        specifier: workspace:*
+        version: link:../../packages/support-kapso
       '@hashpass/types':
         specifier: workspace:*
         version: link:../../packages/types
