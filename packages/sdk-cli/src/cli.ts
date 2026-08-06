@@ -7,6 +7,18 @@ export interface CliIo {
   error(message: string): void;
 }
 
+// Commands that never touch the network and so must not require
+// HASHPASS_APP_ID or SDK construction -- otherwise a fresh environment can't
+// even run `hashpass support doctor` to find out *why* it's misconfigured,
+// or print the static widget snippet before an app-id has been provisioned.
+function noNetworkSupportResult(args: ParsedArgs): unknown | undefined {
+  if (args.command !== "support") return undefined;
+  const [subcommand, id] = args.positionals;
+  if (subcommand === "doctor") return supportDoctor(args);
+  if (subcommand === "widget" && id === "init") return supportWidgetInitSnippet();
+  return undefined;
+}
+
 export async function runCli(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -16,6 +28,12 @@ export async function runCli(
   if (!args.command || args.command === "help" || args.flags.help) { io.out(HELP); return 0; }
 
   try {
+    const staticResult = noNetworkSupportResult(args);
+    if (staticResult !== undefined) {
+      print(staticResult, Boolean(args.flags.json), io);
+      return 0;
+    }
+
     const appId = stringFlag(args, "app-id") ?? env.HASHPASS_APP_ID;
     if (!appId) throw new Error("Set HASHPASS_APP_ID or pass --app-id <public-app-id>.");
     const sdk = createHashpass({
@@ -99,9 +117,19 @@ async function dispatchSupport(
 async function dispatchSupportWidget(sdk: HashpassClient, command: string | undefined, args: ParsedArgs): Promise<unknown> {
   switch (command) {
     case "show": return sdk.support.getWidgetConfiguration(stringFlag(args, "app-id"));
-    case "init": return { element: "<hashpass-support app-id=\"PUBLIC_APP_ID\" locale=\"en\" position=\"bottom-right\"></hashpass-support>", script: "https://cdn.hashpass.tech/support-widget/v1/index.js" };
+    // "init" is handled earlier by noNetworkSupportResult() before the SDK
+    // is ever constructed -- this case only remains reachable if dispatch()
+    // is ever called directly by something other than runCli().
+    case "init": return supportWidgetInitSnippet();
     default: throw new Error("Use `hashpass support widget init|show`.");
   }
+}
+
+function supportWidgetInitSnippet(): unknown {
+  return {
+    element: "<hashpass-support app-id=\"PUBLIC_APP_ID\" locale=\"en\" position=\"bottom-right\"></hashpass-support>",
+    script: "https://cdn.hashpass.tech/support-widget/v1/index.js",
+  };
 }
 
 function supportDoctor(args: ParsedArgs): unknown {

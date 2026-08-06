@@ -1,4 +1,5 @@
-import { createHashpass, type HashpassSdkOptions, type SupportTicket } from "@hashpass/sdk";
+import { createHashpass, type HashpassSdkOptions, type SupportContext, type SupportTicket } from "@hashpass/sdk";
+import { Platform } from "react-native";
 
 export interface SecureSupportSessionStore {
   getItem(key: string): Promise<string | null>;
@@ -16,8 +17,13 @@ export class NativeSupportController {
   constructor(readonly options: NativeSupportControllerOptions) {
     this.sdk = createHashpass(options);
   }
-  createTicket(input: { subject: string; message: string }): Promise<SupportTicket> {
-    return this.sdk.support.createTicket({ ...input, context: { platform: "android" } });
+  createTicket(input: { subject: string; message: string; context?: Partial<SupportContext> }): Promise<SupportTicket> {
+    const { context, ...rest } = input;
+    // Platform.OS is the real caller platform (ios/android/web/...) --
+    // context still allows a caller to override or extend it (device info,
+    // metadata) rather than hard-coding a single OS for every consumer of
+    // this cross-platform controller.
+    return this.sdk.support.createTicket({ ...rest, context: { platform: Platform.OS, ...context } });
   }
   async rememberActiveTicket(ticketId: string): Promise<void> {
     await this.options.secureStore.setItem("hashpass.support.activeTicketId", ticketId);
