@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 const mockRpc = jest.fn();
-const mockGetSupabaseServerForRequest = jest.fn(() => ({ rpc: mockRpc }));
+const mockGetSupabaseServerForRequest = jest.fn((_request: Request) => ({ rpc: mockRpc }));
 
 jest.mock('@/lib/supabase-server', () => ({
   getSupabaseServerForRequest: (request: Request) => mockGetSupabaseServerForRequest(request),

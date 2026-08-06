@@ -5,6 +5,7 @@ import type {
   ListMessagesInput,
   ListTicketsInput,
   MarkTicketReadInput,
+  MessagePage,
   SendMessageInput,
   SupportEvent,
   SupportEventPage,
@@ -64,7 +65,7 @@ export class SupportClient {
     return session;
   }
 
-  listMessages(ticketId: string, input: ListMessagesInput = {}): Promise<import("./types.js").MessagePage> {
+  listMessages(ticketId: string, input: ListMessagesInput = {}): Promise<MessagePage> {
     return this.transport.request(`v1/support/tickets/${encodeURIComponent(ticketId)}/messages`, {
       query: { cursor: input.cursor, limit: input.limit },
     });
