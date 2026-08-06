@@ -564,6 +564,10 @@ try {
     'NODEMAILER_FROM_SUPPORT',
     'BREVO_API_KEY',
     'BREVO_SMS_SENDER',
+    // HashPass Support: Kapso webhook verification + admin notification email
+    'KAPSO_WEBHOOK_SECRET',
+    'KAPSO_API_KEY',
+    'SUPPORT_ADMIN_NOTIFICATION_EMAIL',
   ];
 
   const tenantSupabaseKeys = Object.values(resolveTenantSupabaseBindings(runtime)).filter(Boolean);
