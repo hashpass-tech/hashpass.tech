@@ -1,0 +1,4 @@
+import { getSupabaseServerForRequest } from '@/lib/supabase-server';
+import { isResolveIdentityError, resolveNotificationIdentity } from '@/lib/server/resolve-notification-identity';
+import { toSummary } from '@/lib/moments/supabase-repository';
+export async function GET(request: Request, context: { params: { momentId: string } }) { const identity = await resolveNotificationIdentity(request); if (isResolveIdentityError(identity)) return Response.json({ error: identity.error }, { status: identity.status }); const { data } = await getSupabaseServerForRequest(request).from('collectible_items').select('*').eq('id', context.params.momentId).eq('user_id', identity.supabaseUserId).maybeSingle(); if (!data) return Response.json({ error:'Not found' }, { status:404 }); return Response.json(toSummary(data)); }

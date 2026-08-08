@@ -1,0 +1,3 @@
+export type AlgorandNetwork = 'testnet' | 'mainnet';
+export interface AlgorandMomentsConfig { network: AlgorandNetwork; appId?: string; sponsorAddress?: string; indexerUrl?: string; explorerBaseUrl: string; spendingLimitMicroAlgos: number; }
+export function algorandMomentsConfigFromEnv(env: Record<string,string|undefined> = process.env): AlgorandMomentsConfig { const network = env.ALGORAND_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'; return { network, appId: env.ALGORAND_MOMENTS_APP_ID, sponsorAddress: env.ALGORAND_SPONSOR_ADDRESS, indexerUrl: env.ALGORAND_INDEXER_URL, explorerBaseUrl: network === 'mainnet' ? 'https://allo.info/tx' : 'https://testnet.allo.info/tx', spendingLimitMicroAlgos: Number(env.ALGORAND_MOMENTS_SPENDING_LIMIT_MICROALGOS ?? 1000000) }; }
