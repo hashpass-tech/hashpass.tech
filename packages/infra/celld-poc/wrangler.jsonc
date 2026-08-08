@@ -1,0 +1,9 @@
+{
+  "name": "hashpass-check-in-poc",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-01",
+  "durable_objects": {
+    "bindings": [{ "name": "EVENT_CHECK_INS", "class_name": "EventCheckIns" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventCheckIns"] }],
+}
