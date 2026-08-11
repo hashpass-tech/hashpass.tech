@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GKZFc3P1uDfo4Wyc1bWcA9UReysdPdwz2ZNYOpMigaiFzTJcB6v2c7eY9phD0fF
+\restrict lbupZ0q4z0fWz5uGA496y9veKcBvyiMlrPGctdc9zx6XBCREmP72E2gQRZcakfO
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10
@@ -9636,5 +9636,5 @@ ALTER TABLE public.wallet_auth ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GKZFc3P1uDfo4Wyc1bWcA9UReysdPdwz2ZNYOpMigaiFzTJcB6v2c7eY9phD0fF
+\unrestrict lbupZ0q4z0fWz5uGA496y9veKcBvyiMlrPGctdc9zx6XBCREmP72E2gQRZcakfO
 

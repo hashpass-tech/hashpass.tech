@@ -144,27 +144,47 @@ dead, not duplicates, do not touch.** Their 0 row counts on core prod just
 mean the BSL booking/ticket feature has no real bookings/tickets yet, not
 that the views are unused.
 
-## Finding 5: dev is missing two RLS policies that both prod projects have on `meeting_chat_messages`
+## Finding 5 (fixed): dev was missing two RLS policies on `meeting_chat_messages` — and the real cause went deeper
 
-`meeting_chat_messages` has RLS enabled on all three projects, but only
-**zero** policies on dev — both `meeting_chat_messages_select_participant`
-and `meeting_chat_messages_insert_participant` exist on core prod and BSL
-prod but not on dev, even though dev's `hashpass_schema_migrations` shows
-`V053`/`V054` (the migrations that introduce this table and its policies) as
-applied. Net effect: the e2e encrypted meeting chat feature (CLAUDE.md's
-v1.8.311 entry) is currently **completely unusable on dev** — RLS-enabled
-with zero policies denies all reads and writes, even to legitimate
-participants. This is a functional gap, not a security exposure (deny-all is
-the safe failure mode). Most likely cause: a later migration altered a
-column the policies' `USING`/`WITH CHECK` clauses depend on (e.g. the
-`meetings.speaker_id` type change in Finding 3) and had to drop the
-dependent policies without recreating them — the same class of issue the
-2026-08-06 bootstrap notes describe happening elsewhere. **Not fixed as part
-of this audit** — flagging for a follow-up migration that recreates both
-policies on dev (definitions captured in `db/schema-snapshots/core-prod.sql`
-or via `pg_policies` directly) once someone confirms this is still current.
+`meeting_chat_messages` had RLS enabled on all three projects, but zero
+policies on dev, even though `hashpass_schema_migrations` showed `V053`/
+`V054` as applied. Tracing the actual cause (not just patching the symptom)
+surfaced two layers:
 
-## Finding 6: `support_*` tables exist live on all three projects, from an unmerged PR — imminent V063 collision
+1. **`meeting_chat_messages` itself was missing `meeting_id`, `message_type`,
+   `read_at`, its FK, and its index** on dev. `message_type`/`read_at` turned
+   out to have never been added by any `db/migrations` file at all, on any
+   project — they only exist on core prod/BSL prod because someone added
+   them directly, out of band, the exact untracked-DDL pattern
+   `supabase-project-map.md`'s "Migration bootstrap findings" section
+   already documented happening elsewhere.
+2. **dev's `meetings` table itself was missing 7 columns** that both prod
+   projects have (`event_id`, `slot_id`, `host_id`, `attendee_id`,
+   `start_time`, `end_time`, `attendee_email` — the `meeting_slots`-based
+   scheduling model V009 was responsible for). Worse: dev's existing
+   `meetings_select_participant`/`meetings_update_participant` policies
+   called `get_current_user_id()`, a function that reads the Postgres
+   session variable `app.user_id` — nothing in the normal Supabase/PostgREST
+   request path ever sets that variable (unlike `auth.uid()`, which resolves
+   from the request JWT automatically). In practice, dev's `meetings` RLS
+   was already unreachable for real authenticated requests, independent of
+   chat.
+
+Both prod projects had the correct shape and correct `auth.uid()`-based
+policies throughout — this was a dev-only gap, on top of a dev-only gap.
+
+**Fixed 2026-08-11** via `db/migrations/V066__restore_meeting_chat_messages_policies.sql`:
+adds the 7 missing `meetings` columns/FKs/indexes, rewrites
+`meetings_select_participant`/`meetings_update_participant` to
+`auth.uid()`-based logic matching prod, adds the missing
+`meeting_chat_messages` columns/FK/index, then recreates its two policies.
+0 rows in both tables on dev at the time — zero data-loss risk. Applied to
+core prod and BSL prod too (confirmed pure no-op there beforehand by
+diffing against their live schema first). Explicit user approval obtained
+before the `meetings` RLS rewrite specifically, since it changes real
+access-control logic rather than just adding unused columns.
+
+## Finding 6 (fixed): `support_*` tables exist live on all three projects, from an unmerged PR — V063 collision
 
 Seven tables (`support_tickets`, `support_messages`, `support_sessions`,
 `support_visitors`, `support_ticket_reads`, `support_idempotency_keys`,
@@ -179,14 +199,15 @@ applied directly to all three live databases ahead of merge (per that
 branch's own commit message: "applied and round-trip verified... on both
 dev and prod").
 
-**This collides with `V063__enable_rls_on_legacy_directus_tables.sql`**,
-which this same audit added and merged to `develop` today (2026-08-11) —
-also numbered V063. Whoever finishes PR #168 needs to renumber its
-migration to the next free number (V065, since this doc's other pending
-work — see Finding 5 — may claim V064) before merging, and should confirm
-`hashpass_schema_migrations` bookkeeping on all three projects reflects
-whichever version number actually gets merged, since the tables are already
-live under the old file's implicit identity.
+**This collided with `V063__enable_rls_on_legacy_directus_tables.sql`**,
+merged to `develop` the same day. **Fixed 2026-08-11**: renamed PR #168's
+migration to `db/migrations/V065__support_system.sql` (commit `3dc205c34`
+on `codex/implement-hashpass-support-mvp`, all references in docs/`support-apps.ts`/
+the `events+api.ts` route comment updated, PR commented with the change),
+and retroactively registered `V065__support_system` in
+`hashpass_schema_migrations` on all three live projects (the schema was
+already applied out of band; there was no prior tracking row to update, only
+to add).
 
 **Do not drop these tables** — they're mid-flight feature work, not dead
 schema, even though they look identical to a truly-dead table by every

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict oIIHZVeqqzHt1SbHAyBJCdDalOSyCtK5daeBwcAnFvnDfVR0J8gUExVrjDPzgF0
+\restrict SSHKej7lfT0vTQQ0PQ7cm2N3cQB7cwkbMIlzGnHY3lt2XfGa25isaCuanBrLQpU
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10
@@ -5635,7 +5635,10 @@ CREATE TABLE public.meeting_chat_messages (
     is_read boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     ciphertext text NOT NULL,
-    nonce text NOT NULL
+    nonce text NOT NULL,
+    meeting_id uuid NOT NULL,
+    message_type text DEFAULT 'text'::text NOT NULL,
+    read_at timestamp with time zone
 );
 
 
@@ -5677,7 +5680,14 @@ CREATE TABLE public.meetings (
     title text,
     description text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    event_id text DEFAULT 'bsl2025'::text NOT NULL,
+    slot_id uuid,
+    host_id uuid,
+    attendee_id uuid,
+    start_time timestamp with time zone,
+    end_time timestamp with time zone,
+    attendee_email text
 );
 
 
@@ -7355,6 +7365,13 @@ CREATE INDEX idx_event_roles_user_event ON public.event_roles USING btree (user_
 
 
 --
+-- Name: idx_meeting_chat_messages_meeting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_meeting_chat_messages_meeting ON public.meeting_chat_messages USING btree (meeting_id);
+
+
+--
 -- Name: idx_meeting_requests_expires; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7387,6 +7404,20 @@ CREATE INDEX idx_meeting_requests_status ON public.meeting_requests USING btree 
 --
 
 CREATE UNIQUE INDEX idx_meeting_slots_user_start ON public.meeting_slots USING btree (user_id, start_time);
+
+
+--
+-- Name: idx_meetings_attendee; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_meetings_attendee ON public.meetings USING btree (attendee_id);
+
+
+--
+-- Name: idx_meetings_host; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_meetings_host ON public.meetings USING btree (host_id);
 
 
 --
@@ -8307,6 +8338,14 @@ ALTER TABLE ONLY public.event_roles
 
 
 --
+-- Name: meeting_chat_messages meeting_chat_messages_meeting_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meeting_chat_messages
+    ADD CONSTRAINT meeting_chat_messages_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.meetings(id) ON DELETE CASCADE;
+
+
+--
 -- Name: meeting_chat_messages meeting_chat_messages_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8339,6 +8378,22 @@ ALTER TABLE ONLY public.meeting_slots
 
 
 --
+-- Name: meetings meetings_attendee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meetings
+    ADD CONSTRAINT meetings_attendee_id_fkey FOREIGN KEY (attendee_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;
+
+
+--
+-- Name: meetings meetings_host_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meetings
+    ADD CONSTRAINT meetings_host_id_fkey FOREIGN KEY (host_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;
+
+
+--
 -- Name: meetings meetings_meeting_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8352,6 +8407,14 @@ ALTER TABLE ONLY public.meetings
 
 ALTER TABLE ONLY public.meetings
     ADD CONSTRAINT meetings_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;
+
+
+--
+-- Name: meetings meetings_slot_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.meetings
+    ADD CONSTRAINT meetings_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.meeting_slots(id) ON DELETE SET NULL;
 
 
 --
@@ -9044,6 +9107,28 @@ CREATE POLICY limits_update_own ON public.pass_request_limits FOR UPDATE USING (
 ALTER TABLE public.meeting_chat_messages ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: meeting_chat_messages meeting_chat_messages_insert_participant; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY meeting_chat_messages_insert_participant ON public.meeting_chat_messages FOR INSERT WITH CHECK (((sender_id = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM public.meetings m
+  WHERE ((m.id = meeting_chat_messages.meeting_id) AND ((m.requester_id = auth.uid()) OR (m.host_id = auth.uid()) OR (m.attendee_id = auth.uid()) OR (m.speaker_id IN ( SELECT s.id
+           FROM public.bsl_speakers s
+          WHERE (s.user_id = auth.uid())))))))));
+
+
+--
+-- Name: meeting_chat_messages meeting_chat_messages_select_participant; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY meeting_chat_messages_select_participant ON public.meeting_chat_messages FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM public.meetings m
+  WHERE ((m.id = meeting_chat_messages.meeting_id) AND ((m.requester_id = auth.uid()) OR (m.host_id = auth.uid()) OR (m.attendee_id = auth.uid()) OR (m.speaker_id IN ( SELECT s.id
+           FROM public.bsl_speakers s
+          WHERE (s.user_id = auth.uid()))))))));
+
+
+--
 -- Name: meeting_requests; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -9100,18 +9185,16 @@ ALTER TABLE public.meetings ENABLE ROW LEVEL SECURITY;
 -- Name: meetings meetings_select_participant; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY meetings_select_participant ON public.meetings FOR SELECT USING (((requester_id = public.get_current_user_id()) OR (speaker_id IN ( SELECT bsl_speakers.id
+CREATE POLICY meetings_select_participant ON public.meetings FOR SELECT USING (((requester_id = auth.uid()) OR (host_id = auth.uid()) OR (attendee_id = auth.uid()) OR (speaker_id IN ( SELECT bsl_speakers.id
    FROM public.bsl_speakers
-  WHERE (bsl_speakers.user_id = public.get_current_user_id())))));
+  WHERE (bsl_speakers.user_id = auth.uid())))));
 
 
 --
 -- Name: meetings meetings_update_participant; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY meetings_update_participant ON public.meetings FOR UPDATE USING (((requester_id = public.get_current_user_id()) OR (speaker_id IN ( SELECT bsl_speakers.id
-   FROM public.bsl_speakers
-  WHERE (bsl_speakers.user_id = public.get_current_user_id())))));
+CREATE POLICY meetings_update_participant ON public.meetings FOR UPDATE USING (((requester_id = auth.uid()) OR (host_id = auth.uid()) OR (attendee_id = auth.uid()))) WITH CHECK (((requester_id = auth.uid()) OR (host_id = auth.uid()) OR (attendee_id = auth.uid())));
 
 
 --
@@ -9596,5 +9679,5 @@ ALTER TABLE public.wallet_auth ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict oIIHZVeqqzHt1SbHAyBJCdDalOSyCtK5daeBwcAnFvnDfVR0J8gUExVrjDPzgF0
+\unrestrict SSHKej7lfT0vTQQ0PQ7cm2N3cQB7cwkbMIlzGnHY3lt2XfGa25isaCuanBrLQpU
 
