@@ -4,7 +4,7 @@ import { ticketIdFromRequest } from "@/lib/server/support-route-params";
 
 // Backs SupportClient.watchTicket's cursor-poll loop (packages/sdk/src/support/client.ts).
 // agent.joined/typing.* are never emitted here -- see list_support_events'
-// header comment in db/migrations/V063__support_system.sql for why.
+// header comment in db/migrations/V065__support_system.sql for why.
 export async function GET(request: Request) {
   const supabase = getSupabaseServerForRequest(request);
   const session = await resolveSupportSession(supabase, request);

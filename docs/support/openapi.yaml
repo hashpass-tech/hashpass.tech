@@ -6,7 +6,7 @@ info:
     HashPass Support contract. Paths marked "Not implemented yet" below are
     contract-only -- see docs/support/architecture.md's "What is still
     deliberately not built" section for why. Every other path is a real,
-    tested route backed by db/migrations/V063__support_system.sql.
+    tested route backed by db/migrations/V065__support_system.sql.
 paths:
   /v1/support/sessions:
     post:

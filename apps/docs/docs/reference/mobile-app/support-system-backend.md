@@ -12,7 +12,7 @@ this page is the pointer into the docs site.
 
 ## What's real
 
-- **Schema**: `db/migrations/V063__support_system.sql` — visitors, sessions,
+- **Schema**: `db/migrations/V065__support_system.sql` — visitors, sessions,
   tickets, messages, per-visitor read cursors, an `Idempotency-Key` replay
   table, and a Kapso inbound-webhook events table. Applied to both dev and
   prod. RLS is enabled with no public policies (service-role-route-only

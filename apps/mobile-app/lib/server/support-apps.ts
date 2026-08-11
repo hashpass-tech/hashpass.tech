@@ -2,7 +2,7 @@
  * Static allow-list of app ids the support widget/SDK may be embedded under.
  *
  * There is no tenant/application registry table in this database (see
- * db/migrations/V063__support_system.sql's header comment) -- the closest
+ * db/migrations/V065__support_system.sql's header comment) -- the closest
  * existing concept is the hostname-keyed SSO_CONFIG.tenants map in
  * packages/config/src/sso-config.ts, whose slugs this list intentionally
  * mirrors so a new event tenant doesn't need two separate "which apps exist"
