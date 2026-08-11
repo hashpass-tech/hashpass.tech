@@ -263,8 +263,12 @@ safe). No live table has an FK pointing *into* any candidate table, and no
 view depends on any of them — clean to drop with `chat_messages` dropped
 before (or `CASCADE`ing into) `speed_dating_chats`.
 
-**Not yet acted on** — pending explicit go-ahead per table/group before any
-`DROP TABLE` runs against a live project.
+**RESOLVED 2026-08-11**: dropped via
+`db/migrations/V064__drop_dead_matchmaking_and_orphaned_tables.sql`,
+applied to core prod, BSL prod, and dev (each project cleanly skipped the
+tables it never had — `subpasses` on BSL prod/dev, `user_transactions` on
+core prod — via `DROP TABLE IF EXISTS ... CASCADE`). Verified all 8 gone
+from all 3 projects afterward; `db/schema-snapshots/` regenerated to match.
 
 ## Maintaining this doc
 

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict RRaZo1NdN02h374HfMW4Q4W0QFdkDHBf2Z4dYG2OW49ysGlYd4L84BUGK0mulsk
+\restrict bA9YejEtllNdR5M2a4YvbZZIqasXnBQRewkxCNfqZ6evcXoNZGxp7FG7qqLCIFU
 
 -- Dumped from database version 17.4
 -- Dumped by pg_dump version 17.10
@@ -5634,26 +5634,6 @@ CREATE TABLE public.ba_users (
 
 
 --
--- Name: boost_transactions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.boost_transactions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    meeting_request_id uuid,
-    amount numeric(10,2) DEFAULT 0 NOT NULL,
-    token_symbol text DEFAULT 'VOI'::text NOT NULL,
-    transaction_hash text,
-    block_number integer,
-    status text DEFAULT 'pending'::text NOT NULL,
-    confirmation_count integer DEFAULT 0 NOT NULL,
-    confirmed_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT boost_transactions_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'failed'::text])))
-);
-
-
---
 -- Name: bsl_audit_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -5713,22 +5693,6 @@ CREATE TABLE public.chat_last_seen (
     last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: chat_messages; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.chat_messages (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    chat_id uuid NOT NULL,
-    sender_id uuid NOT NULL,
-    message text NOT NULL,
-    message_type text DEFAULT 'text'::text NOT NULL,
-    is_read boolean DEFAULT false NOT NULL,
-    read_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -6477,29 +6441,6 @@ CREATE TABLE public.event_agenda (
 
 
 --
--- Name: event_agenda_items; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.event_agenda_items (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    event_id text NOT NULL,
-    title text NOT NULL,
-    description text,
-    starts_at timestamp with time zone NOT NULL,
-    ends_at timestamp with time zone NOT NULL,
-    venue text,
-    track text,
-    item_type text DEFAULT 'session'::text NOT NULL,
-    speaker_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
-    sort_order integer DEFAULT 0 NOT NULL,
-    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT agenda_date_order CHECK ((ends_at > starts_at))
-);
-
-
---
 -- Name: event_pass_tiers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6945,30 +6886,6 @@ CREATE TABLE public.session (
 
 
 --
--- Name: speaker_availability; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.speaker_availability (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    event_id text DEFAULT 'bsl2025'::text NOT NULL,
-    speaker_id text NOT NULL,
-    speaker_name text NOT NULL,
-    date date NOT NULL,
-    start_time text NOT NULL,
-    end_time text NOT NULL,
-    duration_minutes integer DEFAULT 15 NOT NULL,
-    max_meetings_per_slot integer DEFAULT 1 NOT NULL,
-    current_meetings_count integer DEFAULT 0 NOT NULL,
-    is_available boolean DEFAULT true NOT NULL,
-    requires_vip_ticket boolean DEFAULT false NOT NULL,
-    requires_business_ticket boolean DEFAULT false NOT NULL,
-    allows_general_ticket boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
 -- Name: speaker_identity_claim_event_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7019,44 +6936,6 @@ CREATE TABLE public.speakers (
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: speed_dating_chats; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.speed_dating_chats (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    meeting_request_id uuid,
-    user_id uuid NOT NULL,
-    speaker_id uuid NOT NULL,
-    chat_duration_minutes integer DEFAULT 15 NOT NULL,
-    started_at timestamp with time zone DEFAULT now() NOT NULL,
-    ended_at timestamp with time zone,
-    status text DEFAULT 'active'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT speed_dating_chats_status_check CHECK ((status = ANY (ARRAY['active'::text, 'ended'::text, 'cancelled'::text])))
-);
-
-
---
--- Name: subpasses; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.subpasses (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    pass_id text NOT NULL,
-    subpass_type public.subpass_type NOT NULL,
-    event_name text NOT NULL,
-    status public.pass_status DEFAULT 'active'::public.pass_status NOT NULL,
-    access_code text,
-    venue text,
-    start_time timestamp with time zone,
-    end_time timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -7485,29 +7364,6 @@ COMMENT ON COLUMN public.wallet_auth.wallet_address IS 'Ethereum address (0x...)
 
 
 --
--- Name: wallet_auth_rate_limits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.wallet_auth_rate_limits (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    wallet_address text NOT NULL,
-    wallet_type public.wallet_type NOT NULL,
-    ip_address text,
-    attempt_count integer DEFAULT 1,
-    window_start timestamp with time zone DEFAULT now(),
-    blocked_until timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now()
-);
-
-
---
--- Name: TABLE wallet_auth_rate_limits; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.wallet_auth_rate_limits IS 'Rate limiting for wallet authentication attempts to prevent abuse';
-
-
---
 -- Name: bsl_audit id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -7626,14 +7482,6 @@ ALTER TABLE ONLY public.ba_users
 
 
 --
--- Name: boost_transactions boost_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.boost_transactions
-    ADD CONSTRAINT boost_transactions_pkey PRIMARY KEY (id);
-
-
---
 -- Name: bsl_audit bsl_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7687,14 +7535,6 @@ ALTER TABLE ONLY public.chat_last_seen
 
 ALTER TABLE ONLY public.chat_last_seen
     ADD CONSTRAINT chat_last_seen_pkey PRIMARY KEY (id);
-
-
---
--- Name: chat_messages chat_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 
 --
@@ -7962,14 +7802,6 @@ ALTER TABLE ONLY public.directus_webhooks
 
 
 --
--- Name: event_agenda_items event_agenda_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.event_agenda_items
-    ADD CONSTRAINT event_agenda_items_pkey PRIMARY KEY (id);
-
-
---
 -- Name: event_agenda event_agenda_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8210,14 +8042,6 @@ ALTER TABLE ONLY public.session
 
 
 --
--- Name: speaker_availability speaker_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speaker_availability
-    ADD CONSTRAINT speaker_availability_pkey PRIMARY KEY (id);
-
-
---
 -- Name: speaker_identity_claim_event_roles speaker_identity_claim_event_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8271,22 +8095,6 @@ ALTER TABLE ONLY public.speakers
 
 ALTER TABLE ONLY public.speakers
     ADD CONSTRAINT speakers_pkey PRIMARY KEY (id);
-
-
---
--- Name: speed_dating_chats speed_dating_chats_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speed_dating_chats
-    ADD CONSTRAINT speed_dating_chats_pkey PRIMARY KEY (id);
-
-
---
--- Name: subpasses subpasses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subpasses
-    ADD CONSTRAINT subpasses_pkey PRIMARY KEY (id);
 
 
 --
@@ -8351,14 +8159,6 @@ ALTER TABLE ONLY public.support_visitors
 
 ALTER TABLE ONLY public.passes
     ADD CONSTRAINT unique_pass_number UNIQUE (pass_number);
-
-
---
--- Name: subpasses unique_pass_subpass; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subpasses
-    ADD CONSTRAINT unique_pass_subpass UNIQUE (pass_id, subpass_type, event_name);
 
 
 --
@@ -8554,22 +8354,6 @@ ALTER TABLE ONLY public.wallet_auth
 
 
 --
--- Name: wallet_auth_rate_limits wallet_auth_rate_limits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.wallet_auth_rate_limits
-    ADD CONSTRAINT wallet_auth_rate_limits_pkey PRIMARY KEY (id);
-
-
---
--- Name: wallet_auth_rate_limits wallet_auth_rate_limits_wallet_address_wallet_type_ip_addre_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.wallet_auth_rate_limits
-    ADD CONSTRAINT wallet_auth_rate_limits_wallet_address_wallet_type_ip_addre_key UNIQUE (wallet_address, wallet_type, ip_address);
-
-
---
 -- Name: wallet_auth wallet_auth_wallet_type_wallet_address_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8620,20 +8404,6 @@ CREATE INDEX idx_admin_action_event_created ON public.admin_action_log USING btr
 
 
 --
--- Name: idx_agenda_event_start; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_agenda_event_start ON public.event_agenda_items USING btree (event_id, starts_at, sort_order);
-
-
---
--- Name: idx_boost_transactions_request; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_boost_transactions_request ON public.boost_transactions USING btree (meeting_request_id);
-
-
---
 -- Name: idx_bsl_speakers_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8645,13 +8415,6 @@ CREATE INDEX idx_bsl_speakers_user_id ON public.bsl_speakers USING btree (user_i
 --
 
 CREATE INDEX idx_chat_last_seen_meeting_user ON public.chat_last_seen USING btree (meeting_id, user_id);
-
-
---
--- Name: idx_chat_messages_chat; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_chat_messages_chat ON public.chat_messages USING btree (chat_id);
 
 
 --
@@ -8984,38 +8747,10 @@ CREATE INDEX idx_reward_transactions_user_id ON public.reward_transactions USING
 
 
 --
--- Name: idx_speaker_availability_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_speaker_availability_unique ON public.speaker_availability USING btree (event_id, speaker_id, date, start_time);
-
-
---
 -- Name: idx_speakers_event_sort; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_speakers_event_sort ON public.speakers USING btree (event_id, sort_order, name);
-
-
---
--- Name: idx_speed_dating_chats_speaker; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_speed_dating_chats_speaker ON public.speed_dating_chats USING btree (speaker_id);
-
-
---
--- Name: idx_speed_dating_chats_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_speed_dating_chats_user ON public.speed_dating_chats USING btree (user_id);
-
-
---
--- Name: idx_subpasses_pass_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subpasses_pass_type ON public.subpasses USING btree (pass_id, subpass_type);
 
 
 --
@@ -9285,13 +9020,6 @@ CREATE INDEX idx_wallet_auth_user_id ON public.wallet_auth USING btree (user_id)
 
 
 --
--- Name: idx_wallet_rate_limit_lookup; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_wallet_rate_limit_lookup ON public.wallet_auth_rate_limits USING btree (wallet_address, wallet_type, ip_address, window_start);
-
-
---
 -- Name: notifications_user_level_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9310,13 +9038,6 @@ CREATE INDEX "session_userId_idx" ON public.session USING btree ("userId");
 --
 
 CREATE INDEX verification_identifier_idx ON public.verification USING btree (identifier);
-
-
---
--- Name: boost_transactions trg_boost_transactions_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_boost_transactions_updated_at BEFORE UPDATE ON public.boost_transactions FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 
 --
@@ -9366,20 +9087,6 @@ CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH
 --
 
 CREATE TRIGGER trg_public_user_sync_profiles AFTER INSERT OR UPDATE ON public."user" FOR EACH ROW EXECUTE FUNCTION public.sync_public_user_to_profiles();
-
-
---
--- Name: speaker_availability trg_speaker_availability_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_speaker_availability_updated_at BEFORE UPDATE ON public.speaker_availability FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
-
-
---
--- Name: speed_dating_chats trg_speed_dating_chats_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_speed_dating_chats_updated_at BEFORE UPDATE ON public.speed_dating_chats FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 
 --
@@ -9467,13 +9174,6 @@ CREATE TRIGGER update_qr_codes_updated_at BEFORE UPDATE ON public.qr_codes FOR E
 
 
 --
--- Name: subpasses update_subpasses_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER update_subpasses_updated_at BEFORE UPDATE ON public.subpasses FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-
---
 -- Name: user_roles update_user_roles_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -9508,14 +9208,6 @@ ALTER TABLE ONLY public.account
 
 ALTER TABLE ONLY public.admin_action_log
     ADD CONSTRAINT admin_action_log_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE SET NULL;
-
-
---
--- Name: boost_transactions boost_transactions_meeting_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.boost_transactions
-    ADD CONSTRAINT boost_transactions_meeting_request_id_fkey FOREIGN KEY (meeting_request_id) REFERENCES public.meeting_requests(id) ON DELETE CASCADE;
 
 
 --
@@ -9556,22 +9248,6 @@ ALTER TABLE ONLY public.chat_last_seen
 
 ALTER TABLE ONLY public.chat_last_seen
     ADD CONSTRAINT chat_last_seen_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;
-
-
---
--- Name: chat_messages chat_messages_chat_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES public.speed_dating_chats(id) ON DELETE CASCADE;
-
-
---
--- Name: chat_messages chat_messages_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.chat_messages
-    ADD CONSTRAINT chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public."user"(id) ON DELETE CASCADE;
 
 
 --
@@ -9919,14 +9595,6 @@ ALTER TABLE ONLY public.directus_webhooks
 
 
 --
--- Name: event_agenda_items event_agenda_items_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.event_agenda_items
-    ADD CONSTRAINT event_agenda_items_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
-
-
---
 -- Name: event_pass_tiers event_pass_tiers_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10143,14 +9811,6 @@ ALTER TABLE ONLY public.session
 
 
 --
--- Name: speaker_availability speaker_availability_speaker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speaker_availability
-    ADD CONSTRAINT speaker_availability_speaker_id_fkey FOREIGN KEY (speaker_id) REFERENCES public.bsl_speakers(id) ON DELETE CASCADE;
-
-
---
 -- Name: speaker_identity_claim_event_roles speaker_identity_claim_event_roles_claim_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10188,38 +9848,6 @@ ALTER TABLE ONLY public.speaker_identity_claims
 
 ALTER TABLE ONLY public.speakers
     ADD CONSTRAINT speakers_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
-
-
---
--- Name: speed_dating_chats speed_dating_chats_meeting_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speed_dating_chats
-    ADD CONSTRAINT speed_dating_chats_meeting_request_id_fkey FOREIGN KEY (meeting_request_id) REFERENCES public.meeting_requests(id) ON DELETE CASCADE;
-
-
---
--- Name: speed_dating_chats speed_dating_chats_speaker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speed_dating_chats
-    ADD CONSTRAINT speed_dating_chats_speaker_id_fkey FOREIGN KEY (speaker_id) REFERENCES public."user"(id) ON DELETE CASCADE;
-
-
---
--- Name: speed_dating_chats speed_dating_chats_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.speed_dating_chats
-    ADD CONSTRAINT speed_dating_chats_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
-
-
---
--- Name: subpasses subpasses_pass_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subpasses
-    ADD CONSTRAINT subpasses_pass_id_fkey FOREIGN KEY (pass_id) REFERENCES public.passes(id) ON DELETE CASCADE;
 
 
 --
@@ -10422,13 +10050,6 @@ CREATE POLICY "Service role can manage email tracking" ON public.user_email_trac
 
 
 --
--- Name: wallet_auth_rate_limits Service role can manage rate limits; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Service role can manage rate limits" ON public.wallet_auth_rate_limits USING ((auth.role() = 'service_role'::text));
-
-
---
 -- Name: user_blocks Speakers can manage blocks; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10559,15 +10180,6 @@ COMMENT ON POLICY "Users can view their own roles" ON public.user_roles IS 'Allo
 
 
 --
--- Name: subpasses Users can view their own subpasses; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Users can view their own subpasses" ON public.subpasses FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM public.passes
-  WHERE ((passes.id = subpasses.pass_id) AND (passes.user_id = (auth.uid())::text)))));
-
-
---
 -- Name: reward_transactions Users can view their own transactions; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10606,15 +10218,6 @@ ALTER TABLE public.admin_email_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_matchmaking_runs ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: event_agenda_items agenda_public_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY agenda_public_read ON public.event_agenda_items FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM public.events e
-  WHERE ((e.id = event_agenda_items.event_id) AND (e.status = ANY (ARRAY['published'::text, 'archived'::text]))))));
-
-
---
 -- Name: bsl_audit audit_select; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10650,21 +10253,6 @@ CREATE POLICY bookings_select ON public.bsl_bookings FOR SELECT USING (((attende
 --
 
 CREATE POLICY bookings_update ON public.bsl_bookings FOR UPDATE USING (((attendeeid = auth.uid()) OR ((COALESCE(current_setting('request.jwt.claims'::text, true), ''::text) <> ''::text) AND (((current_setting('request.jwt.claims'::text, true))::jsonb ->> 'role'::text) = 'service_role'::text))));
-
-
---
--- Name: boost_transactions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.boost_transactions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: boost_transactions boost_transactions_select_own; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY boost_transactions_select_own ON public.boost_transactions FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM public.meeting_requests mr
-  WHERE ((mr.id = boost_transactions.meeting_request_id) AND (mr.requester_id = auth.uid())))));
 
 
 --
@@ -10716,30 +10304,6 @@ CREATE POLICY chat_last_seen_select_own ON public.chat_last_seen FOR SELECT USIN
 --
 
 CREATE POLICY chat_last_seen_update_own ON public.chat_last_seen FOR UPDATE USING ((user_id = auth.uid())) WITH CHECK ((user_id = auth.uid()));
-
-
---
--- Name: chat_messages; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
-
---
--- Name: chat_messages chat_messages_insert_participant; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY chat_messages_insert_participant ON public.chat_messages FOR INSERT WITH CHECK (((sender_id = auth.uid()) AND (EXISTS ( SELECT 1
-   FROM public.speed_dating_chats c
-  WHERE ((c.id = chat_messages.chat_id) AND ((c.user_id = auth.uid()) OR (c.speaker_id = auth.uid())))))));
-
-
---
--- Name: chat_messages chat_messages_select_participant; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY chat_messages_select_participant ON public.chat_messages FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM public.speed_dating_chats c
-  WHERE ((c.id = chat_messages.chat_id) AND ((c.user_id = auth.uid()) OR (c.speaker_id = auth.uid()))))));
 
 
 --
@@ -10909,12 +10473,6 @@ ALTER TABLE public.directus_webhooks ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.event_agenda ENABLE ROW LEVEL SECURITY;
-
---
--- Name: event_agenda_items; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.event_agenda_items ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: event_agenda event_agenda_public_read; Type: POLICY; Schema: public; Owner: -
@@ -11219,30 +10777,6 @@ CREATE POLICY roles_admin_all ON public.user_roles USING (public.is_admin(public
 ALTER TABLE public.session ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: speaker_availability; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.speaker_availability ENABLE ROW LEVEL SECURITY;
-
---
--- Name: speaker_availability speaker_availability_manage_own; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY speaker_availability_manage_own ON public.speaker_availability USING ((speaker_id IN ( SELECT bsl_speakers.id
-   FROM public.bsl_speakers
-  WHERE (bsl_speakers.user_id = auth.uid())))) WITH CHECK ((speaker_id IN ( SELECT bsl_speakers.id
-   FROM public.bsl_speakers
-  WHERE (bsl_speakers.user_id = auth.uid()))));
-
-
---
--- Name: speaker_availability speaker_availability_select_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY speaker_availability_select_public ON public.speaker_availability FOR SELECT USING (true);
-
-
---
 -- Name: speaker_identity_claim_event_roles; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11289,39 +10823,6 @@ CREATE POLICY speakers_select ON public.bsl_speakers FOR SELECT USING (true);
 
 CREATE POLICY speakers_update_own ON public.bsl_speakers FOR UPDATE USING ((user_id = auth.uid()));
 
-
---
--- Name: speed_dating_chats; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.speed_dating_chats ENABLE ROW LEVEL SECURITY;
-
---
--- Name: speed_dating_chats speed_dating_chats_insert_participant; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY speed_dating_chats_insert_participant ON public.speed_dating_chats FOR INSERT WITH CHECK (((user_id = auth.uid()) OR (speaker_id = auth.uid())));
-
-
---
--- Name: speed_dating_chats speed_dating_chats_select_participant; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY speed_dating_chats_select_participant ON public.speed_dating_chats FOR SELECT USING (((user_id = auth.uid()) OR (speaker_id = auth.uid())));
-
-
---
--- Name: speed_dating_chats speed_dating_chats_update_participant; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY speed_dating_chats_update_participant ON public.speed_dating_chats FOR UPDATE USING (((user_id = auth.uid()) OR (speaker_id = auth.uid()))) WITH CHECK (((user_id = auth.uid()) OR (speaker_id = auth.uid())));
-
-
---
--- Name: subpasses; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.subpasses ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: support_idempotency_keys; Type: ROW SECURITY; Schema: public; Owner: -
@@ -11639,14 +11140,8 @@ ALTER TABLE public.verification ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wallet_auth ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: wallet_auth_rate_limits; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.wallet_auth_rate_limits ENABLE ROW LEVEL SECURITY;
-
---
 -- PostgreSQL database dump complete
 --
 
-\unrestrict RRaZo1NdN02h374HfMW4Q4W0QFdkDHBf2Z4dYG2OW49ysGlYd4L84BUGK0mulsk
+\unrestrict bA9YejEtllNdR5M2a4YvbZZIqasXnBQRewkxCNfqZ6evcXoNZGxp7FG7qqLCIFU
 
