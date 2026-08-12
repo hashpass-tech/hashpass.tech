@@ -19,7 +19,7 @@ let mockAuthState: MockAuthState = {
   isLoggedIn: true,
   isLoading: false,
 };
-let capturedQuickAccess: {
+let mockCapturedQuickAccess: {
   items: Array<{ id: string; route?: string }>;
   onItemPress: (item: { id: string; route?: string }) => void;
 } | null = null;
@@ -90,8 +90,8 @@ jest.mock('../../hooks/useTutorialPreferences', () => ({
 jest.mock('../../components/explorer/QuickAccessGrid', () => ({
   __esModule: true,
   default: ({ items, onItemPress }: { items: any[]; onItemPress: (item: any) => void }) => {
-    capturedQuickAccess = { items, onItemPress };
-    return React.createElement('QuickAccessGrid', { items, onItemPress });
+    mockCapturedQuickAccess = { items, onItemPress };
+    return null;
   },
 }));
 jest.mock('../../components/LoadingScreen', () => 'LoadingScreen');
@@ -139,7 +139,7 @@ describe('networking dashboard', () => {
     mockRouterPush.mockReset();
     mockApiRequest.mockReset();
     mockShowError.mockReset();
-    capturedQuickAccess = null;
+    mockCapturedQuickAccess = null;
     mockChannel.on.mockClear();
     mockChannel.subscribe.mockClear();
   });
@@ -159,9 +159,9 @@ describe('networking dashboard', () => {
       await flushPromises();
     });
 
-    expect(capturedQuickAccess).not.toBeNull();
+    expect(mockCapturedQuickAccess).not.toBeNull();
     act(() => {
-      capturedQuickAccess!.onItemPress({
+      mockCapturedQuickAccess!.onItemPress({
         id: 'admin-dashboard-shortcut',
         route: '/admin-dashboard',
       });
@@ -186,15 +186,57 @@ describe('networking dashboard', () => {
       await flushPromises();
     });
 
-    expect(capturedQuickAccess).not.toBeNull();
+    expect(mockCapturedQuickAccess).not.toBeNull();
     act(() => {
-      capturedQuickAccess!.onItemPress({
+      mockCapturedQuickAccess!.onItemPress({
         id: 'speaker-dashboard-shortcut',
         route: '/events/chile2026/speaker-dashboard',
       });
     });
     expect(mockShowError).toHaveBeenCalledWith('Access Denied', 'Sign in to access this feature.');
     expect(mockRouterPush).not.toHaveBeenCalled();
+
+    await act(async () => renderer!.unmount());
+  });
+
+  it('allows navigation for non-protected quick access routes', async () => {
+    mockAuthState = {
+      user: { id: 'attendee-3', email: 'attendee3@example.com' },
+      dbUserId: 'db-user-3',
+      isLoggedIn: true,
+      isLoading: false,
+    };
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      data: {
+        data: {
+          counts: {
+            total_requests: 8,
+            pending_requests: 1,
+            accepted_requests: 1,
+            declined_requests: 0,
+            cancelled_requests: 0,
+          },
+          speaker: { blockedUsers: 2 },
+        },
+      },
+    });
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<NetworkingView />);
+      await flushPromises();
+    });
+
+    expect(mockCapturedQuickAccess).not.toBeNull();
+    act(() => {
+      mockCapturedQuickAccess!.onItemPress({
+        id: 'find-speakers-shortcut',
+        route: '/events/chile2026/speakers',
+      });
+    });
+    expect(mockShowError).not.toHaveBeenCalled();
+    expect(mockRouterPush).toHaveBeenCalledWith('/events/chile2026/speakers');
 
     await act(async () => renderer!.unmount());
   });
