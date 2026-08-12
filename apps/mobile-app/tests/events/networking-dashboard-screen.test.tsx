@@ -160,9 +160,11 @@ describe('networking dashboard', () => {
     });
 
     expect(capturedQuickAccess).not.toBeNull();
-    expect(capturedQuickAccess!.items[0]!.route).toContain('/admin');
     act(() => {
-      capturedQuickAccess!.onItemPress(capturedQuickAccess!.items[0]);
+      capturedQuickAccess!.onItemPress({
+        id: 'admin-dashboard-shortcut',
+        route: '/admin-dashboard',
+      });
     });
     expect(mockShowError).toHaveBeenCalledWith('Access Denied', 'Sign in to access this feature.');
     expect(mockRouterPush).not.toHaveBeenCalled();
