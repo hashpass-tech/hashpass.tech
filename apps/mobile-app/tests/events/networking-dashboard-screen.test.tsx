@@ -172,6 +172,33 @@ describe('networking dashboard', () => {
     await act(async () => renderer!.unmount());
   });
 
+  it('blocks speaker dashboard quick access when dbUserId is absent', async () => {
+    mockAuthState = {
+      user: { id: 'attendee-2', email: 'attendee2@example.com' },
+      dbUserId: null,
+      isLoggedIn: true,
+      isLoading: false,
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<NetworkingView />);
+      await flushPromises();
+    });
+
+    expect(capturedQuickAccess).not.toBeNull();
+    act(() => {
+      capturedQuickAccess!.onItemPress({
+        id: 'speaker-dashboard-shortcut',
+        route: '/events/chile2026/speaker-dashboard',
+      });
+    });
+    expect(mockShowError).toHaveBeenCalledWith('Access Denied', 'Sign in to access this feature.');
+    expect(mockRouterPush).not.toHaveBeenCalled();
+
+    await act(async () => renderer!.unmount());
+  });
+
   it('loads and renders authenticated stats from the event-scoped backend API', async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
