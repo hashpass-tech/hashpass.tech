@@ -61,19 +61,19 @@ This directly overrides any blanket "delete unused Directus tables" instinct.
 Checked all 11 rows in core prod's `directus_users` against the canonical
 `public.user` registry:
 
-| Email | In `public.user` registry? |
+| Account label | In `public.user` registry? |
 |---|---|
-| admin@hashpass.tech | yes |
-| ecalderon@unal.edu.co | yes |
-| edward@hashpass.app | yes |
-| edwardca12@gmail.com | yes |
-| tiranicida.mtheory@gmail.com | yes |
-| ahumada1799v@gmail.com | **no** |
-| jairbest9@gmail.com | **no** |
-| jmanuel2700@gmail.com | **no** |
-| kaylamendoza.49244@gmail.com | **no** |
-| osmarlpulidorodriguez@gmail.com | **no** |
-| santiago.ruizm40@gmail.com | **no** |
+| bootstrap admin account | yes |
+| redacted-user-01 | yes |
+| redacted-user-02 | yes |
+| redacted-user-03 | yes |
+| redacted-user-04 | yes |
+| redacted-user-05 | **no** |
+| redacted-user-06 | **no** |
+| redacted-user-07 | **no** |
+| redacted-user-08 | **no** |
+| redacted-user-09 | **no** |
+| redacted-user-10 | **no** |
 
 Six of eleven accounts exist **only** in Directus, with no corresponding row
 in the canonical registry — this is exactly the risk a prior explicit
@@ -86,8 +86,8 @@ until each of these six accounts is either migrated into the registry or a
 deliberate decision is made to abandon them.
 
 By contrast, BSL prod and dev's `directus_users` each hold exactly one row —
-`admin@hashpass.tech`, Directus's own bootstrap admin account, which already
-exists in the registry. Those two projects' `directus_*` tables hold no
+a Directus bootstrap admin account that already exists in the registry. Those two
+projects' `directus_*` tables hold no
 real, unrecoverable data (see row counts below) and are lower-risk if a
 future decision is made to drop them (RLS is already correctly locking them
 down either way; deletion is a data-retention decision, not a security one,
