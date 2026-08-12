@@ -16,33 +16,49 @@
 -- with zero policies blocks anon/authenticated access via PostgREST while
 -- leaving service_role (which bypasses RLS) unaffected.
 
-ALTER TABLE public.directus_access ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_activity ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_collections ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_comments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_dashboards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_extensions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_fields ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_files ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_flows ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_migrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_operations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_panels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_policies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_presets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_relations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_revisions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_shares ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_translations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_versions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.directus_webhooks ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+  legacy_tables text[] := ARRAY[
+    'directus_access',
+    'directus_activity',
+    'directus_collections',
+    'directus_comments',
+    'directus_dashboards',
+    'directus_extensions',
+    'directus_fields',
+    'directus_files',
+    'directus_flows',
+    'directus_folders',
+    'directus_migrations',
+    'directus_notifications',
+    'directus_operations',
+    'directus_panels',
+    'directus_permissions',
+    'directus_policies',
+    'directus_presets',
+    'directus_relations',
+    'directus_revisions',
+    'directus_roles',
+    'directus_sessions',
+    'directus_settings',
+    'directus_shares',
+    'directus_translations',
+    'directus_users',
+    'directus_versions',
+    'directus_webhooks'
+  ];
+  tbl text;
+BEGIN
+  FOREACH tbl IN ARRAY legacy_tables LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = tbl
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    END IF;
+  END LOOP;
+END $$;
 
 INSERT INTO hashpass_schema_migrations (id, file_path)
 VALUES ('V063__enable_rls_on_legacy_directus_tables', 'db/migrations/V063__enable_rls_on_legacy_directus_tables.sql')
