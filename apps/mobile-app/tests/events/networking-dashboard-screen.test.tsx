@@ -6,8 +6,14 @@ import TestRenderer, { act } from 'react-test-renderer';
 const mockApiRequest = jest.fn();
 const mockShowError = jest.fn();
 const mockRouterPush = jest.fn();
+type MockAuthState = {
+  user: { id: string; email: string };
+  dbUserId: string | null;
+  isLoggedIn: boolean;
+  isLoading: boolean;
+};
 let mockEvent: { id: string; name?: string } | null = { id: 'chile2026', name: 'BSL Chile 2026' };
-let mockAuthState = {
+let mockAuthState: MockAuthState = {
   user: { id: 'auth-user-1', email: 'attendee@example.com' },
   dbUserId: 'db-user-1',
   isLoggedIn: true,
