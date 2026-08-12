@@ -5,7 +5,18 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 const mockApiRequest = jest.fn();
 const mockShowError = jest.fn();
+const mockRouterPush = jest.fn();
 let mockEvent: { id: string; name?: string } | null = { id: 'chile2026', name: 'BSL Chile 2026' };
+let mockAuthState = {
+  user: { id: 'auth-user-1', email: 'attendee@example.com' },
+  dbUserId: 'db-user-1',
+  isLoggedIn: true,
+  isLoading: false,
+};
+let capturedQuickAccess: {
+  items: Array<{ id: string; route?: string }>;
+  onItemPress: (item: { id: string; route?: string }) => void;
+} | null = null;
 const mockChannel = {
   on: jest.fn().mockReturnThis(),
   subscribe: jest.fn().mockReturnThis(),
@@ -13,7 +24,7 @@ const mockChannel = {
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: 'StackScreen' },
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockRouterPush }),
   useFocusEffect: jest.fn(),
   useLocalSearchParams: () => ({ eventSlug: 'chile2026' }),
 }));
@@ -32,12 +43,7 @@ jest.mock('../../hooks/useTheme', () => ({
 }));
 
 jest.mock('../../hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { id: 'auth-user-1', email: 'attendee@example.com' },
-    dbUserId: 'db-user-1',
-    isLoggedIn: true,
-    isLoading: false,
-  }),
+  useAuth: () => mockAuthState,
 }));
 
 jest.mock('@contexts/EventContext', () => ({
@@ -75,7 +81,13 @@ jest.mock('../../hooks/useTutorialPreferences', () => ({
   }),
 }));
 
-jest.mock('../../components/explorer/QuickAccessGrid', () => 'QuickAccessGrid');
+jest.mock('../../components/explorer/QuickAccessGrid', () => ({
+  __esModule: true,
+  default: ({ items, onItemPress }: { items: any[]; onItemPress: (item: any) => void }) => {
+    capturedQuickAccess = { items, onItemPress };
+    return React.createElement('QuickAccessGrid', { items, onItemPress });
+  },
+}));
 jest.mock('../../components/LoadingScreen', () => 'LoadingScreen');
 jest.mock('../../lib/vector-icons', () => ({ MaterialIcons: 'MaterialIcons' }));
 
@@ -112,10 +124,44 @@ const flushPromises = () => new Promise<void>((resolve) => setTimeout(resolve, 0
 describe('networking dashboard', () => {
   beforeEach(() => {
     mockEvent = { id: 'chile2026', name: 'BSL Chile 2026' };
+    mockAuthState = {
+      user: { id: 'auth-user-1', email: 'attendee@example.com' },
+      dbUserId: 'db-user-1',
+      isLoggedIn: true,
+      isLoading: false,
+    };
+    mockRouterPush.mockReset();
     mockApiRequest.mockReset();
     mockShowError.mockReset();
+    capturedQuickAccess = null;
     mockChannel.on.mockClear();
     mockChannel.subscribe.mockClear();
+  });
+
+  it('blocks protected quick access navigation when the user is not fully signed in', async () => {
+    mockAuthState = {
+      user: { id: 'attendee-1', email: 'attendee@example.com' },
+      dbUserId: null,
+      isLoggedIn: true,
+      isLoading: false,
+    };
+    mockEvent = { id: 'admin', name: 'Admin Event' };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<NetworkingView />);
+      await flushPromises();
+    });
+
+    expect(capturedQuickAccess).not.toBeNull();
+    expect(capturedQuickAccess!.items[0]!.route).toContain('/admin');
+    act(() => {
+      capturedQuickAccess!.onItemPress(capturedQuickAccess!.items[0]);
+    });
+    expect(mockShowError).toHaveBeenCalledWith('Access Denied', 'Sign in to access this feature.');
+    expect(mockRouterPush).not.toHaveBeenCalled();
+
+    await act(async () => renderer!.unmount());
   });
 
   it('loads and renders authenticated stats from the event-scoped backend API', async () => {
