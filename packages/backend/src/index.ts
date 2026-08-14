@@ -108,3 +108,7 @@ export * from './types';
 export * from './interfaces';
 export default getBackend;
 export { SupabaseBackendProvider } from './supabase';
+export * from './qr-links/types';
+export * from './qr-links/validation';
+export * from './analytics/privacy';
+export * from './auth-qr/challenge';

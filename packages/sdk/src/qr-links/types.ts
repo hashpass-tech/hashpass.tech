@@ -1,0 +1,5 @@
+export type QrStatus = "active" | "paused" | "expired" | "archived";
+export interface QrLinkInput { name: string; description?: string; destinationUrl: string; expiresAt?: string; status?: QrStatus; campaign?: Record<string, string | undefined>; visualConfig?: { foreground: string; background: string; modules: "square"|"rounded"; finderEye: "square"|"rounded"; logo: boolean; errorCorrection: "M"|"Q"|"H"; margin: number; logoSize: number } }
+export interface QrLinkResource extends QrLinkInput { id: string; publicSlug: string; shortUrl: string; status: QrStatus; createdAt: string; updatedAt: string; scanCount: number; lastScanAt?: string }
+export interface QrAnalytics { totalScans: number; uniqueScans: number; humanScans: number; botScans: number; timeline: Array<{ date: string; scans: number }>; devices: Record<string, number>; locations: Array<{ country?: string; city?: string; scans: number }>; recent: Array<{ scannedAt: string; device: string; bot: boolean; referrer?: string }> }
+export interface QrAuthChallenge { id: string; qrUrl: string; expiresAt: string; state: string }

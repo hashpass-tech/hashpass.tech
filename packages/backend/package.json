@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -16,6 +17,8 @@
     "@supabase/supabase-js": "^2.81.1"
   },
   "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsx": "^4.20.6",
     "typescript": "~5.8.3"
   }
 }
