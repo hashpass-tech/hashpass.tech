@@ -48,7 +48,7 @@ describe('event tenant detection', () => {
     expect(tenant.id).toBe('main');
     expect(tenant.showAllEvents).toBe(true);
     expect(isGlobalEventTenant('hashpass.tech')).toBe(true);
-    expect(events).toEqual(['bsl', 'peru2026', 'chile2026', 'colombia2026', 'bsl2025', 'hash-poker']);
+    expect(events).toEqual(['bsl', 'peru2026', 'chile2026', 'colombia2026', 'bsl2025', 'hash-poker', 'criptolatinfest']);
   });
 
   it('scopes bsl.hashpass.tech to the BSL event family via shared tenant config', () => {
