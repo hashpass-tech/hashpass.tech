@@ -59,6 +59,10 @@ Run `npm run sync:events` from cron or a scheduled CI runner. It writes:
 
 Recommended schedule is hourly for the lightweight PKRR page, with exponential scheduling/backoff supplied by the job runner after failures. A `failed` health state means no usable prior snapshot; `degraded` means the source failed but retained data remains. Alert on repeated degraded/failed status or a stale `lastSuccessfulSync`.
 
+The scheduled workflow persists successful changes by opening or updating the `automation/event-source-sync` pull request against `develop`; the application never depends on a disposable workflow artifact. The artifact remains available for diagnostics. Repository protections and normal review/deployment checks therefore apply before a refreshed snapshot reaches users.
+
+Stale events remain in the snapshot for audit and manual review, but the active Hash Poker host configuration explicitly excludes both `stale` and `cancelled` records. Missing tournaments can therefore never be rolled forward into a landing card or active agenda.
+
 Review any event with `needsReview: true`, `confidence < 0.75`, `status: stale`, a changed date, or an unexpected venue. Compare its preserved `sourceUrl` and `rawPayload` with the public page. Correct the adapter/fixture or source data; do not hand-edit generated records. Deletion remains a manual product decision.
 
 ## Add another source

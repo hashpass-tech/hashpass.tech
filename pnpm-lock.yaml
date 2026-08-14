@@ -1162,6 +1162,9 @@ importers:
 
   packages/event-ingestion:
     dependencies:
+      parse5:
+        specifier: ^7.3.0
+        version: 7.3.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76

@@ -1,8 +1,9 @@
 import { normalizedEventSchema, type NormalizedEvent } from "./schema.js";
+import { attribute, elements, parseHtml, textContent } from "./html.js";
 
 export function parseJsonLdEvents(html: string, sourceId: string, sourceUrl: string, now = new Date()): NormalizedEvent[] {
-  const scripts = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  const nodes = scripts.flatMap(match => { try { const value = JSON.parse(match[1]); return Array.isArray(value) ? value : value["@graph"] || [value]; } catch { return []; } });
+  const scripts = elements(parseHtml(html), element => element.tagName === "script" && attribute(element, "type")?.toLowerCase() === "application/ld+json");
+  const nodes = scripts.flatMap(script => { try { const value = JSON.parse(textContent(script)); return Array.isArray(value) ? value : value["@graph"] || [value]; } catch { return []; } });
   return nodes.filter(node => node?.["@type"] === "Event").map((node, index) => normalizedEventSchema.parse({
     id: `${sourceId}:${node.identifier || index}`, sourceId, externalId: String(node.identifier || node.url || index),
     slug: String(node.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), title: node.name,

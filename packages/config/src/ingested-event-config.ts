@@ -3,6 +3,10 @@ import snapshot from "./generated/ingested-events.json";
 
 type IngestedEvent = (typeof snapshot.events)[number];
 
+export function isActiveIngestedEvent(event: { sourceId: string; status: string }): boolean {
+  return event.sourceId === "pkrr-hash-poker" && event.status !== "cancelled" && event.status !== "stale";
+}
+
 export function resolveNextOccurrence(event: IngestedEvent, now = new Date()): string {
   const next = new Date(event.startsAt);
   if (Number.isNaN(next.getTime())) throw new Error(`Invalid ingested event date: ${event.startsAt}`);
@@ -14,7 +18,7 @@ export function resolveNextOccurrence(event: IngestedEvent, now = new Date()): s
 
 export function getHashPokerEventConfig(now = new Date()): EventConfig | null {
   const candidates = snapshot.events
-    .filter(event => event.sourceId === "pkrr-hash-poker" && event.status !== "cancelled")
+    .filter(isActiveIngestedEvent)
     .map(event => ({ event, next: resolveNextOccurrence(event, now) }))
     .sort((a, b) => Date.parse(a.next) - Date.parse(b.next));
   const selected = candidates[0];

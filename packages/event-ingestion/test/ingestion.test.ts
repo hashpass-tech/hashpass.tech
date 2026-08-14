@@ -30,6 +30,15 @@ describe("event ingestion", () => {
     assert.throws(() => normalizedEventSchema.parse({ title: "" }));
     assert.throws(() => normalizedEventSchema.parse({ title: "Event", startsAt: "soon" }));
   });
+  it("parses adversarial HTML without regex backtracking or comment leakage", () => {
+    const repeated = "<script".repeat(20_000) + "<a href=!".repeat(20_000) + "<div".repeat(20_000);
+    const started = Date.now();
+    const hostileHtml = `<script type="application/ld+json"><!--not-json--></script>${repeated}`;
+    const signals = inspectPublicHtml(hostileHtml, "https://example.com");
+    assert.equal(signals.jsonLd, true);
+    assert.deepEqual(parseJsonLdEvents(hostileHtml, "generic", "https://example.com"), []);
+    assert.ok(Date.now() - started < 2_000);
+  });
 });
 
 describe("sync failure", () => {
@@ -41,5 +50,14 @@ describe("sync failure", () => {
     const fetchImpl = async () => { throw new Error("offline"); };
     const result = await syncEventSources({ outputFile, healthFile, fetchImpl: fetchImpl as typeof fetch });
     assert.equal(result.health.status, "degraded"); assert.equal(result.events.length, 1);
+  });
+  it("does not churn the persisted snapshot when public event content is unchanged", async () => {
+    const outputFile = `/tmp/hashpass-events-stable-${process.pid}.json`; const healthFile = `/tmp/hashpass-health-stable-${process.pid}.json`; files.push(outputFile, healthFile);
+    const html = await fixture("pkrr.html");
+    const fetchImpl = async (input: string | URL | Request) => new Response(String(input).includes("robots.txt") ? "User-agent: *\nAllow: /" : html, { status: 200 });
+    await syncEventSources({ outputFile, healthFile, fetchImpl: fetchImpl as typeof fetch, now: new Date("2026-08-14T00:00:00Z") });
+    const first = await readFile(outputFile, "utf8");
+    await syncEventSources({ outputFile, healthFile, fetchImpl: fetchImpl as typeof fetch, now: new Date("2026-08-14T01:00:00Z") });
+    assert.equal(await readFile(outputFile, "utf8"), first);
   });
 });
