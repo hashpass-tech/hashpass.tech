@@ -40,6 +40,9 @@ const TENANT_ALIASES: Record<string, string> = {
   bsl2025: 'bsl2025',
   pkrr: 'hash-poker',
   'hash-poker': 'hash-poker',
+  criptolatinfest: 'criptolatinfest',
+  clf: 'criptolatinfest',
+  'clf2026': 'criptolatinfest',
 };
 
 const TENANT_HOSTNAME_ALIASES: Record<string, string> = {
@@ -64,6 +67,7 @@ const TENANT_HOSTNAME_ALIASES: Record<string, string> = {
   'colombia2026.hashpass.tech': 'colombia2026',
   'hash.poker': 'hash-poker',
   'www.hash.poker': 'hash-poker',
+  'demo-criptolatinfest.hashpass.tech': 'criptolatinfest',
 };
 
 const getEventTourHubId = (eventId: string): string | null => {
