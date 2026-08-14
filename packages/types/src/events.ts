@@ -113,4 +113,12 @@ export interface EventConfig {
   eventType?: "hashpass" | "whitelabel";
   tour?: EventTourMeta;
   website?: string; // Event website URL for footer links
+  /** Ingestion/community metadata; conference-only surfaces are feature-gated. */
+  sourceId?: string;
+  organizerName?: string;
+  communityEventType?: "poker_room_event" | "community_tournament" | "community_event";
+  recurrenceLabel?: string;
+  cta?: { label: string; url: string };
+  networkingEnabled?: boolean;
+  checkinEnabled?: boolean;
 }

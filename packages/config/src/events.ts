@@ -4,6 +4,7 @@ import type {
   EventContinent,
   Speaker,
 } from "@hashpass/types";
+import { getHashPokerEventConfig } from "./ingested-event-config";
 
 export type {
   Speaker,
@@ -194,6 +195,8 @@ const makeTourStopConfig = (
   },
   quickAccessItems: makeTourQuickAccess(eventId) as any,
 });
+
+const HASH_POKER_EVENT = getHashPokerEventConfig();
 
 export const EVENTS: Record<string, EventConfig> = {
   bsl: {
@@ -1953,6 +1956,7 @@ export const EVENTS: Record<string, EventConfig> = {
       },
     ],
   },
+  ...(HASH_POKER_EVENT ? { "hash-poker": HASH_POKER_EVENT } : {}),
   default: {
     id: "default",
     name: "HASHPASS",

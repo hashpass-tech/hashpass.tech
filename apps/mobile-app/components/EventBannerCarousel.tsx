@@ -346,6 +346,8 @@ export default function EventBannerCarousel({
                       isLive={false}
                       eventId={event.id}
                       eventImage={event.image}
+                      eventLabel={event.recurrenceLabel}
+                      ctaLabel={event.cta?.label}
                     />
                   )}
                 </TouchableOpacity>
