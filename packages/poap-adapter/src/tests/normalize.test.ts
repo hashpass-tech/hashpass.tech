@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { normalizePOAP } from '../normalize.js';
+test('gnosis POAP normalizes with durable source identifier', () => { const item = normalizePOAP({ tokenId:123, event:{ id:9, name:'Legacy' } }, { chainId:100, ownerAddress:'0xABC', explorerBaseUrl:'https://gnosisscan.io/token', dataSource:'chain' }); assert.equal(item.sourceIdentifier, 'poap:100:0x22c1f6050e56d2876009903609a2cc3fef83b415:123'); assert.equal(item.ownerAddress, '0xabc'); });

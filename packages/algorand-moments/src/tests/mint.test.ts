@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { prepareMint } from '../mint.js';
+test('duplicate mint is prevented and metadata URI is stable', () => { assert.equal(prepareMint({ tokenId:'1', ownerAddress:'A', metadataUri:'ipfs://m' }).transactionId, 'pending:1'); assert.throws(() => prepareMint({ tokenId:'1', ownerAddress:'A', metadataUri:'file://x' }), /durable/); assert.throws(() => prepareMint({ tokenId:'1', ownerAddress:'A', metadataUri:'ipfs://m', existingTransactionId:'tx' }), /duplicate/); });

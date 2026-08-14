@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { deduplicatePOAPs } from '../deduplicate.js';
+test('api and chain POAP results deduplicate', () => { const base:any = { sourceIdentifier:'poap:100:x:1' }; assert.equal(deduplicatePOAPs([{...base,dataSource:'chain'}, {...base,dataSource:'poap_api'}]).length, 1); assert.equal(deduplicatePOAPs([{...base,dataSource:'chain'}, {...base,dataSource:'poap_api'}])[0].dataSource, 'poap_api'); });

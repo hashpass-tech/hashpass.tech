@@ -1,0 +1,1 @@
+export function prepareTransfer(input: { tokenId:string; from:string; to:string }) { if (input.from === input.to) throw new Error('transfer recipient already owner'); return { tokenId: input.tokenId, from: input.from, to: input.to }; }
