@@ -1,13 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // HashPass Links includes latency-sensitive route handlers and therefore
-  // requires the Next.js server runtime rather than a static-only export.
-  output: 'standalone',
+  output: 'export',
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },
   reactStrictMode: true,
-  transpilePackages: ['@hashpass/ui', '@hashpass/utils', '@hashpass/types', '@hashpass/i18n', '@hashpass/config', '@hashpass/backend'],
+  transpilePackages: ['@hashpass/ui', '@hashpass/utils', '@hashpass/types', '@hashpass/i18n', '@hashpass/config'],
   webpack(config) {
     config.resolve.alias = {
       ...config.resolve.alias,

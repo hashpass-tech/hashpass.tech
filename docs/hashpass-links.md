@@ -5,8 +5,8 @@ HashPass Links is a shared domain service exposed through `/api/v1`. HashPass Cl
 ## Local development
 
 1. Apply `db/migrations/V079__hashpass_links_dynamic_qr.sql` with `npm run db:migrate`.
-2. Set the variables below and run `pnpm dev:club`.
-3. Open `/links`. Requests to `/q/:slug` exercise the same redirect handler used by `hashpass.link`.
+2. Set the variables below and run `pnpm --filter hashpass-links-service dev` for the API and `pnpm dev:club` for the static Club UI.
+3. Open `/links`. The Club UI calls the separately deployed Links service; it contains no server route handlers and remains compatible with GitHub Pages.
 
 | Variable | Purpose |
 | --- | --- |
@@ -14,10 +14,11 @@ HashPass Links is a shared domain service exposed through `/api/v1`. HashPass Cl
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only database/auth access; never expose to a browser. |
 | `HASHPASS_LINK_ORIGIN` | Public origin, normally `https://hashpass.link`. |
 | `QR_ANALYTICS_SECRET` | At least 32 random characters; rotate on a planned monthly boundary. |
+| `NEXT_PUBLIC_HASHPASS_LINKS_API_URL` | Public Links service API origin used by the static Club client. |
 
 ## Routing and deployment
 
-Point `hashpass.link` DNS at the Club Next.js deployment and configure the platform to route `/q/*`, `/auth/*`, and `/api/health/links`. Redirects are deliberately `302`, `no-store` error responses are branded, and only the opaque `hashpass.link/q/:slug` URL is encoded. Configure platform/WAF rate limiting for `/q/*` (recommended baseline: 120 requests/minute/IP with bot challenges above that threshold), structured log shipping, TLS, and universal/app-link association files before production traffic.
+Deploy `apps/links-service` to a server-capable Next.js host, point `hashpass.link` and `links-api.hashpass.tech` at that service, and configure `/q/*`, `/auth/*`, and `/api/health/links`. HashPass Club remains a static export consumed by the existing GitHub Pages workflow. Redirects are deliberately `302`, `no-store` error responses are branded, and only the opaque `hashpass.link/q/:slug` URL is encoded. Configure platform/WAF rate limiting for `/q/*` (recommended baseline: 120 requests/minute/IP with bot challenges above that threshold), structured log shipping, TLS, CORS restricted to HashPass clients, and universal/app-link association files before production traffic.
 
 Analytics stores a monthly rotating HMAC identifier, not a raw IP. Country/city values are accepted only from trusted deployment-edge headers. Retention and deletion jobs should remove detailed scan rows according to the published privacy policy while retaining aggregate reports.
 

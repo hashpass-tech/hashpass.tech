@@ -53,3 +53,38 @@ CREATE POLICY qr_audit_owner_read ON qr_link_audit_events FOR SELECT USING (EXIS
 
 CREATE OR REPLACE FUNCTION touch_qr_link() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END $$;
 CREATE TRIGGER qr_link_updated BEFORE UPDATE ON qr_links FOR EACH ROW EXECUTE FUNCTION touch_qr_link();
+
+-- Aggregate in PostgreSQL so high-volume links are never silently capped by an
+-- application-side row limit. The service role supplies the authenticated owner.
+CREATE OR REPLACE FUNCTION qr_link_analytics(p_qr_link_id uuid, p_owner_id uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH authorized AS (
+    SELECT id FROM qr_links WHERE id = p_qr_link_id AND owner_id = p_owner_id AND deleted_at IS NULL
+  ), events AS (
+    SELECT e.* FROM qr_scan_events e JOIN authorized a ON a.id = e.qr_link_id
+  ), totals AS (
+    SELECT count(*) total, count(DISTINCT visitor_hash) unique_total,
+      count(*) FILTER (WHERE bot_classification = 'human') human_total,
+      count(*) FILTER (WHERE bot_classification <> 'human') bot_total FROM events
+  )
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM authorized) THEN NULL ELSE jsonb_build_object(
+    'totalScans', (SELECT total FROM totals),
+    'uniqueScans', (SELECT unique_total FROM totals),
+    'humanScans', (SELECT human_total FROM totals),
+    'botScans', (SELECT bot_total FROM totals),
+    'timeline', COALESCE((SELECT jsonb_agg(jsonb_build_object('date', day, 'scans', scans) ORDER BY day)
+      FROM (SELECT scanned_at::date day, count(*) scans FROM events GROUP BY 1) t), '[]'::jsonb),
+    'devices', COALESCE((SELECT jsonb_object_agg(device_type, scans)
+      FROM (SELECT device_type, count(*) scans FROM events GROUP BY 1) d), '{}'::jsonb),
+    'locations', COALESCE((SELECT jsonb_agg(jsonb_build_object('country', country, 'city', city, 'scans', scans) ORDER BY scans DESC)
+      FROM (SELECT country, city, count(*) scans FROM events WHERE country IS NOT NULL GROUP BY 1, 2) l), '[]'::jsonb),
+    'campaigns', COALESCE((SELECT jsonb_agg(jsonb_build_object('campaign', campaign, 'scans', scans) ORDER BY scans DESC)
+      FROM (SELECT campaign, count(*) scans FROM events WHERE campaign <> '{}'::jsonb GROUP BY 1) c), '[]'::jsonb),
+    'recent', COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY "scannedAt" DESC) FROM
+      (SELECT scanned_at AS "scannedAt", device_type AS device,
+        bot_classification <> 'human' AS bot, referrer, browser, os, campaign
+       FROM events ORDER BY scanned_at DESC LIMIT 100) r), '[]'::jsonb)
+  ) END;
+$$;
+REVOKE ALL ON FUNCTION qr_link_analytics(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION qr_link_analytics(uuid, uuid) TO service_role;
