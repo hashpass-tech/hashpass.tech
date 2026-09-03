@@ -55,6 +55,7 @@ const DEFAULT_CORS_ALLOWED_ORIGINS = [
   "https://blockchainsummit.hashpass.lat",
   "https://blockchainsummit-dev.hashpass.lat",
   "https://cbweek2026.hashpass.tech",
+  "https://btcmedellin.hashpass.tech",
 ];
 
 function splitCsv(value) {

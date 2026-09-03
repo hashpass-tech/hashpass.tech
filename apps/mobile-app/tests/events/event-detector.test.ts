@@ -164,6 +164,20 @@ describe("event tenant detection", () => {
     ).toBe(true);
   });
 
+  it("scopes the Bitcoin Medellín proposal subdomain and exposes its wallet-first organizer demo", () => {
+    const tenant = getEventTenantContext("btcmedellin.hashpass.tech");
+    const event = EVENTS.btcmedellin2027;
+
+    expect(tenant.id).toBe("btcmedellin2027");
+    expect(getAvailableEvents("btcmedellin.hashpass.tech").map(({ id }) => id)).toEqual(["btcmedellin2027"]);
+    expect(event.isDemo).toBe(true);
+    expect(event.subtitle).toContain("Plaza Mayor");
+    expect(event.features).toContain("wallet");
+    expect(event.quickAccessItems?.find(({ id }) => id === "wallet")?.subtitle).toContain("Bitcoin-ready");
+    expect(event.eventDateString).toContain("Dates to be confirmed");
+    expect(event.agenda).toHaveLength(7);
+  });
+
   it("does not restore the retired demo event when SHOW_DEMO_EVENTS is enabled", () => {
     setEnv("SHOW_DEMO_EVENTS", "true");
 

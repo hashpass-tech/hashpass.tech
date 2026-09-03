@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 150" role="img" aria-labelledby="title desc">
+  <title id="title">Bitcoin Medellín 2027 proposal</title><desc id="desc">Orange Bitcoin symbol beside the Bitcoin Medellín wordmark.</desc>
+  <rect width="620" height="150" rx="24" fill="#090909"/>
+  <circle cx="76" cy="75" r="51" fill="#f7931a"/>
+  <text x="76" y="103" text-anchor="middle" fill="#090909" font-family="Arial,sans-serif" font-size="78" font-weight="800">₿</text>
+  <text x="150" y="69" fill="#fff" font-family="Arial,sans-serif" font-size="45" font-weight="900" letter-spacing="-1">BITCOIN</text>
+  <text x="150" y="112" fill="#f7931a" font-family="Arial,sans-serif" font-size="37" font-weight="800" letter-spacing="6">MEDELLÍN</text>
+  <text x="547" y="113" fill="#fff" font-family="Arial,sans-serif" font-size="20" font-weight="700">2027</text>
+</svg>

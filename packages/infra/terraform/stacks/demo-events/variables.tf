@@ -84,6 +84,9 @@ variable "demo_events" {
     cbweek2026 = {
       subdomain = "cbweek2026.hashpass.tech"
     }
+    btcmedellin2027 = {
+      subdomain = "btcmedellin.hashpass.tech"
+    }
   }
 }
 

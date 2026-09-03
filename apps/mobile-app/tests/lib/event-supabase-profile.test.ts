@@ -10,6 +10,15 @@ describe("event Supabase profile selection", () => {
     ).toBe("bsl-development");
   });
 
+  it("keeps the Bitcoin Medellín proposal on the BSL development database even through the production API", () => {
+    expect(
+      getEventSupabaseProfileId(
+        new Request("https://api.hashpass.tech/api/events/btcmedellin2027/auth-allies"),
+        "btcmedellin2027",
+      ),
+    ).toBe("bsl-development");
+  });
+
   it("uses the BSL production profile for an on-tour event on the production host", () => {
     expect(
       getEventSupabaseProfileId(

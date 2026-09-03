@@ -1,6 +1,6 @@
 import { hostnameFromRequest, type SupabaseProfileId } from "@/config/supabase-profiles";
 
-const BSL_EVENT_PATTERN = /^(?:bsl|bsl2025|peru2026|chile2026|colombia2026|cbweek2026|criptolatinfest)$/i;
+const BSL_EVENT_PATTERN = /^(?:bsl|bsl2025|peru2026|chile2026|colombia2026|cbweek2026|btcmedellin2027|criptolatinfest)$/i;
 
 /**
  * Resolves a server database profile from the event identity, not merely the
@@ -12,6 +12,8 @@ export function getEventSupabaseProfileId(
   eventId: string,
 ): SupabaseProfileId | undefined {
   if (!BSL_EVENT_PATTERN.test(eventId)) return undefined;
+
+  if (/^(?:btcmedellin2027|criptolatinfest)$/i.test(eventId)) return "bsl-development";
 
   const host = hostnameFromRequest(request);
   return host === "bsl-dev.hashpass.tech" ||
