@@ -70,6 +70,7 @@
     "infra:hashpass-web:apply": "bash packages/infra/terraform/scripts/stack.sh hashpass-web apply",
     "infra:hashpass-web:destroy": "bash packages/infra/terraform/scripts/stack.sh hashpass-web destroy",
     "infra:doctor": "pnpm --filter @hashpass/infra run doctor",
+    "poc:celld:test": "node --test packages/infra/celld-poc/test/worker.test.mjs",
     "infra:mobile-release:plan": "bash packages/infra/terraform/scripts/stack.sh mobile-release-target plan",
     "infra:mobile-release:apply": "bash packages/infra/terraform/scripts/stack.sh mobile-release-target apply",
     "infra:mobile-release:destroy": "bash packages/infra/terraform/scripts/stack.sh mobile-release-target destroy",
