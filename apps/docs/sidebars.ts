@@ -3,6 +3,11 @@ const sidebars = {
     'README',
     {
       type: 'category',
+      label: 'Developers / Desarrolladores',
+      items: ['developers/overview'],
+    },
+    {
+      type: 'category',
       label: 'Authentication',
       items: [
         'auth/README',
