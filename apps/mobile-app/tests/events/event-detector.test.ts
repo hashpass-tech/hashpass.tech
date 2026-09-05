@@ -173,7 +173,7 @@ describe("event tenant detection", () => {
     expect(event.isDemo).toBe(true);
     expect(event.subtitle).toContain("Plaza Mayor");
     expect(event.features).toContain("wallet");
-    expect(event.quickAccessItems?.find(({ id }) => id === "wallet")?.subtitle).toContain("Bitcoin-ready");
+    expect(event.quickAccessItems?.find(({ id }) => id === "wallet")?.subtitle).toContain("no BTC custody");
     expect(event.eventDateString).toContain("Dates to be confirmed");
     expect(event.agenda).toHaveLength(7);
   });

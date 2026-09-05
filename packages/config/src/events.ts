@@ -4490,7 +4490,7 @@ export const EVENTS: Record<string, EventConfig> = {
     agenda: [
       { id: "btcm27-01", time: "09:00", title: "Opening: Medellín is bullish", description: "Proposed welcome from the Bitcoin Medellín community and the 2027 event vision.", type: "keynote", location: "Bull Stage · Pabellón principal", day: "1" },
       { id: "btcm27-02", time: "10:00", title: "Bitcoin for everyone", description: "A practical, Spanish-first adoption track for newcomers, merchants and families.", type: "panel", location: "Bull Stage · Pabellón principal", day: "1" },
-      { id: "btcm27-03", time: "11:30", title: "Self-custody & Bitcoin wallets", description: "Proposed wallet workshop, including a Bull Bitcoin-compatible attendee journey and safe self-custody education.", type: "workshop", location: "Builder Stage", day: "1" },
+      { id: "btcm27-03", time: "11:30", title: "Self-custody & Bitcoin wallets", description: "Compatibility discovery lab for Bull Bitcoin Wallet handoff, standard Bitcoin payment requests and safe self-custody education; no live integration is implied.", type: "workshop", location: "Builder Stage", day: "1" },
       { id: "btcm27-04", time: "14:00", title: "Lightning commerce in Medellín", description: "Hands-on merchant payments, point-of-sale flows and circular Bitcoin economies.", type: "workshop", location: "Adoption Lab", day: "1" },
       { id: "btcm27-05", time: "09:30", title: "Mining from the Andes", description: "Energy, infrastructure and responsible mining across Colombia and Latin America.", type: "panel", location: "Bull Stage · Pabellón principal", day: "2" },
       { id: "btcm27-06", time: "11:00", title: "Builders pavilion", description: "Open-source demos, Lightning tools and Bitcoin-only product showcases.", type: "workshop", location: "Builder Stage", day: "2" },
@@ -4498,7 +4498,7 @@ export const EVENTS: Record<string, EventConfig> = {
     ],
     quickAccessItems: [
       { id: "agenda", title: "Proposal Agenda", subtitle: "Two Bitcoin-only days", icon: "event", color: "#F7931A", route: "/events/btcmedellin2027/agenda" },
-      { id: "wallet", title: "Attendee Pass Wallet", subtitle: "Bitcoin-ready access journey", icon: "account-balance-wallet", color: "#FFB347", route: "/dashboard/wallet" },
+      { id: "wallet", title: "Attendee Pass Wallet", subtitle: "Event passes · no BTC custody", icon: "account-balance-wallet", color: "#FFB347", route: "/dashboard/wallet" },
       { id: "networking", title: "Community Matchmaking", subtitle: "Meet builders & bitcoiners", icon: "people-alt", color: "#22C55E", route: "/events/btcmedellin2027/networking" },
       { id: "event-info", title: "Plaza Mayor 2027", subtitle: "Venue & organizer plan", icon: "info", color: "#FFFFFF", route: "/events/btcmedellin2027/event-info" },
     ],
