@@ -105,13 +105,16 @@ completely unreachable.
 
 ## Current migration state (see the task doc for the live checklist)
 
-As of 2026-09-04: the dev-only GitHub OIDC deploy role
+As of 2026-09-05: the dev-only GitHub OIDC deploy role
 (`hashpass-development-static-site-github-actions`) is applied, the
 `development` GitHub environment exists with `main`/`develop` branch
-restrictions, `AWS_STATIC_SITE_DEPLOY_ROLE_ARN` is set on it, and one
-observed manual dev deploy has been run through
-`github-hosted-static-site-deploy.yml`. The AWS `hashpass-dev-site`
-CodePipeline's automatic `develop`-push trigger is **still enabled** — it
-remains the live automatic path until the GitHub-hosted path completes its
-observation period, per the task doc's ordered containment plan. Only after
-that does `dev_aws_pipeline_source_detect_changes` get set to disable it.
+restrictions, `AWS_STATIC_SITE_DEPLOY_ROLE_ARN` is set on it, and
+`github-hosted-static-site-deploy.yml` now auto-triggers a real build+deploy
+on every path-filtered push to `develop` (not just manual `workflow_dispatch`
+runs). The AWS `hashpass-dev-site` CodePipeline's automatic `develop`-push
+trigger is **still enabled** — so a single relevant push currently starts
+both deployments in parallel. AWS remains the documented rollback until the
+GitHub-hosted path completes its observation period, per the task doc's
+ordered containment plan. Only after that does
+`dev_aws_pipeline_source_detect_changes` get set to disable the AWS
+auto-trigger.

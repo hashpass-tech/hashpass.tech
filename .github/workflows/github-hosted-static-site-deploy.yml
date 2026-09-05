@@ -38,9 +38,14 @@ jobs:
     runs-on: ubuntu-latest
     # A rapid follow-up push should cancel a stale in-flight build rather than
     # waste runner time on both -- this is the free build-only path, unlike
-    # the deploy job below which must never be cancelled mid-flight.
+    # the deploy job below which must never be cancelled mid-flight. The group
+    # key also carries whether this run intends to deploy (push, or a manual
+    # dispatch with deploy=true): a manual build-only trial must never land in
+    # the same group as a deploy-capable run, or cancel-in-progress would let
+    # it cancel an in-flight auto-deploy build -- since `deploy: needs: build`,
+    # that cancelled build's deployment would then silently never happen.
     concurrency:
-      group: static-site-build-development-${{ github.ref }}
+      group: static-site-build-development-${{ github.ref }}-${{ github.event_name == 'push' || inputs.deploy == true }}
       cancel-in-progress: true
     env:
       BUILD_ENV: dev

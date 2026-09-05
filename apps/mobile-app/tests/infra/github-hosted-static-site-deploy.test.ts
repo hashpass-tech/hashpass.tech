@@ -43,7 +43,15 @@ describe('GitHub-hosted static-site deployment workflow', () => {
     expect(workflow).toContain('hashpass-dev-site');
     const buildJob = workflow.split('\n  build:\n')[1]?.split('\n  deploy:\n')[0];
     expect(buildJob).toBeDefined();
-    expect(buildJob).toContain('group: static-site-build-development-${{ github.ref }}');
+    // The group key must carry whether this run intends to deploy (push, or a
+    // manual dispatch with deploy=true) -- otherwise a manual build-only
+    // trial shares the automatic push build's group and, with
+    // cancel-in-progress, can cancel an in-flight auto-deploy build. Since
+    // `deploy: needs: build`, that cancelled build's deployment would then
+    // silently never happen.
+    expect(buildJob).toContain(
+      'group: static-site-build-development-${{ github.ref }}-${{ github.event_name == \'push\' || inputs.deploy == true }}',
+    );
     expect(buildJob).toContain('cancel-in-progress: true');
     expect(workflow).toContain("--arg trigger \"${{ github.event_name }}\"");
     expect(workflow).toContain('- Trigger: \\`${{ github.event_name }}\\`');
