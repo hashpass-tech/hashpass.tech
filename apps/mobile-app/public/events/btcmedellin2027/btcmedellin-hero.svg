@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+ <title id="title">Bitcoin Medellín 2027 proposal</title><desc id="desc">A bold orange Bitcoin sunrise over Medellín's mountains and Plaza Mayor.</desc>
+ <defs>
+  <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#050505"/><stop offset=".62" stop-color="#15100b"/><stop offset="1" stop-color="#060606"/></linearGradient>
+  <radialGradient id="sun"><stop stop-color="#ffba55"/><stop offset=".55" stop-color="#f7931a"/><stop offset="1" stop-color="#f7931a" stop-opacity="0"/></radialGradient>
+  <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse"><path d="M56 0H0v56" fill="none" stroke="#f7931a" stroke-opacity=".08"/></pattern>
+ </defs>
+ <rect width="1600" height="900" fill="url(#sky)"/><rect width="1600" height="900" fill="url(#grid)"/>
+ <circle cx="1250" cy="240" r="230" fill="url(#sun)"/><circle cx="1250" cy="240" r="106" fill="#f7931a"/><text x="1250" y="286" text-anchor="middle" font-family="Arial,sans-serif" font-size="132" font-weight="900" fill="#090909">₿</text>
+ <path d="M0 550L190 430l170 77 190-190 206 202 168-144 230 177 216-155 250 182v321H0z" fill="#111" stroke="#f7931a" stroke-opacity=".48" stroke-width="4"/>
+ <path d="M0 672h1600v228H0z" fill="#080808"/><path d="M875 632h480v190H875zM925 577h380v55H925z" fill="#171717" stroke="#f7931a" stroke-width="4"/><path d="M925 687h380M1035 632v190M1195 632v190" stroke="#f7931a" stroke-opacity=".55" stroke-width="3"/>
+ <text x="95" y="175" fill="#f7931a" font-family="Arial,sans-serif" font-size="25" font-weight="800" letter-spacing="8">PROPOSAL EDITION · 2027</text>
+ <text x="88" y="276" fill="#fff" font-family="Arial,sans-serif" font-size="94" font-weight="900">MORE PAVILION.</text><text x="88" y="374" fill="#f7931a" font-family="Arial,sans-serif" font-size="94" font-weight="900">MORE BULL.</text>
+ <text x="95" y="435" fill="#ddd" font-family="Arial,sans-serif" font-size="30">PLAZA MAYOR · MEDELLÍN · DATES TO BE CONFIRMED</text>
+ <rect x="95" y="493" width="235" height="64" rx="32" fill="#f7931a"/><text x="212" y="535" text-anchor="middle" fill="#090909" font-family="Arial,sans-serif" font-size="26" font-weight="900">BITCOIN ONLY</text>
+ <text x="95" y="795" fill="#fff" font-family="Arial,sans-serif" font-size="50" font-weight="900">WAGMI</text><text x="95" y="836" fill="#999" font-family="Arial,sans-serif" font-size="20" letter-spacing="4">A HASHPASS EVENT EXPERIENCE PROPOSAL</text>
+</svg>

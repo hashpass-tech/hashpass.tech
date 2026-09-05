@@ -36,8 +36,13 @@ locals {
   # real failed plan).
   cbweek2026_artifact_bucket_name = "hashpass-cbweek2026-pipelines-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
 
+  btcmedellin2027_site_bucket_name     = "hashpass-btcmedellin27-site-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  btcmedellin2027_site_origin_domain   = "${local.btcmedellin2027_site_bucket_name}.s3-website.${var.aws_region}.amazonaws.com"
+  btcmedellin2027_artifact_bucket_name = "hashpass-btcmedellin27-pipeline-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+
   demo_event_origin_domain_names = {
-    cbweek2026 = local.cbweek2026_site_origin_domain
+    cbweek2026      = local.cbweek2026_site_origin_domain
+    btcmedellin2027 = local.btcmedellin2027_site_origin_domain
   }
 }
 
