@@ -139,6 +139,7 @@
     "sdk:test": "pnpm --filter @hashpass-tech/sdk test && pnpm --filter @hashpass-tech/sdk-cli test",
     "sdk:typecheck": "pnpm --filter @hashpass-tech/sdk typecheck && pnpm --filter @hashpass-tech/sdk build && pnpm --filter @hashpass-tech/sdk-cli typecheck",
     "sdk:check": "pnpm sdk:typecheck && pnpm sdk:test",
+    "developer-key:provision": "node packages/tools/scripts/provision-developer-api-key.mjs",
     "sdk:version": "node packages/tools/scripts/version-sdk.mjs",
     "docs:deploy:netlify": "pnpm --filter hashpass-docs build && netlify deploy --prod --dir=apps/docs/build",
     "release:pipeline": "node packages/tools/scripts/release-pipeline.js",

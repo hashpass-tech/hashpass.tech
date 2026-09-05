@@ -1,7 +1,7 @@
 # Task: Developer Platform + BSL ticket issuance API
 
 **Priority:** P0 / High
-**Status:** In progress — forensic report and public contract foundation drafted 2026-09-05; runtime and portal not yet production-ready.
+**Status:** In progress — report, contract and secure issuance MVP implemented 2026-09-05; migration deployment, key provisioning and portal remain gated.
 
 ## Mission
 
@@ -13,15 +13,19 @@ Deliver a secure, scalable and accessible developer platform so BSL can issue Ha
 - [x] Spanish stakeholder report with architecture, risks, ownership model, rollout and acceptance criteria.
 - [x] Bilingual Docusaurus developer quickstart and draft OpenAPI 3.1 contract.
 - [x] Initial contract covers environment separation, scoped auth, idempotent issue/list/get/revoke, RFC 9457-style problems, cursor pagination and rate limiting.
+- [x] Implement test/live API-key validation, rate limiting, Wompi server-to-server verification and atomic idempotent ticket issuance.
+- [x] Add service-role-only database boundary with hashed keys, event scopes, credential registry and replay/conflict handling.
 
 ## P0 — pilot blocker
 
 - [ ] Review the contract with BSL and freeze `/v1` semantics.
-- [ ] Implement organization/application/key tables; store only Argon2id/HMAC-derived hashes and show secrets once.
-- [ ] Implement per-event scopes and tenant isolation with deny-by-default policy tests.
-- [ ] Implement ticket issue/get/list/revoke against the existing audited event-admin mutation boundary.
-- [ ] Verify Wompi approval server-to-server; never trust browser redirects or caller-supplied `status` alone.
-- [ ] Add atomic idempotency storage and payload-fingerprint conflict detection.
+- [x] Implement application/key tables; store SHA-256 key digests, never raw keys, and expose no secret-read policy.
+- [x] Implement per-event scopes and deny-by-default tenant/environment checks inside a service-role-only RPC.
+- [x] Implement ticket issuance in a dedicated external credential registry; wallet/pass projection remains next.
+- [x] Verify Wompi approval server-to-server; never trust browser redirects or caller-supplied status.
+- [x] Add atomic idempotency storage and payload-fingerprint conflict detection.
+- [ ] Deploy V092 to BSL development, provision the first test key, and execute the contract smoke test.
+- [ ] Project issued external credentials into the existing `passes`/wallet model without weakening its user identity constraints.
 - [ ] Add signed webhook delivery, replay protection, dead-letter queue and replay UI.
 - [ ] Create BSL test tenant/app/key; run contract and concurrency tests before live credentials.
 - [ ] Ask BSL to canonicalize Wompi return URL from the Vercel hostname to `bsl.blckchn.xyz`.

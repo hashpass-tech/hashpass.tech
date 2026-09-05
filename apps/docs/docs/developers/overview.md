@@ -14,8 +14,8 @@ HashPass expone la emisión de tickets como API interoperable e independiente de
 
 | Mode | Base URL | Data |
 |---|---|---|
-| Test | `https://api-dev.hashpass.tech/v1` | Synthetic only / Sólo datos sintéticos |
-| Live | `https://api.hashpass.tech/v1` | Production / Producción |
+| Test | `https://api-dev.hashpass.tech/api/v1` | Synthetic only / Sólo datos sintéticos |
+| Live | `https://api.hashpass.tech/api/v1` | Production / Producción |
 
 Keys never cross environments. Never place a secret key in a browser, mobile binary, URL, screenshot or support ticket.
 
@@ -24,7 +24,7 @@ Las claves nunca cruzan entornos. Nunca incluya una clave secreta en navegador, 
 ## First issuance / Primera emisión
 
 ```bash
-curl --request POST 'https://api-dev.hashpass.tech/v1/events/evt_bsl_colombia_2026/tickets' \
+curl --request POST 'https://api-dev.hashpass.tech/api/v1/events/evt_bsl_colombia_2026/tickets' \
   --header 'Authorization: Bearer hp_test_REPLACE_ME' \
   --header 'Idempotency-Key: order-123-ticket-1' \
   --header 'Content-Type: application/json' \
@@ -32,11 +32,13 @@ curl --request POST 'https://api-dev.hashpass.tech/v1/events/evt_bsl_colombia_20
     "externalReference":"order-123-ticket-1",
     "ticketTypeId":"general",
     "attendee":{"email":"attendee@example.com","fullName":"Ada Ejemplo"},
-    "payment":{"provider":"wompi","reference":"provider-reference","status":"approved"}
+    "payment":{"provider":"wompi","transactionId":"wompi-transaction-id","reference":"order-123","amountInCents":8900000,"currency":"COP"}
   }'
 ```
 
 Never infer approval from the customer redirect. Confirm it server-to-server with the payment provider before calling HashPass. / Nunca infiera aprobación desde el redirect del comprador. Confírmela servidor-a-servidor con el proveedor antes de llamar a HashPass.
+
+The MVP independently retrieves that Wompi transaction and requires an exact match for approved status, merchant reference, amount, and currency before its atomic issuance RPC runs. / El MVP consulta independientemente la transacción Wompi y exige coincidencia exacta de estado aprobado, referencia, monto y moneda antes de ejecutar su RPC atómico de emisión.
 
 ## Required protocol / Protocolo obligatorio
 
@@ -57,3 +59,15 @@ HashPass envía `Webhook-Id`, `Webhook-Timestamp` y `Webhook-Signature`. Calcule
 The normative OpenAPI 3.1 source is [`static/openapi/hashpass-events-v1.yaml`](pathname:///openapi/hashpass-events-v1.yaml). It defines authentication, scopes, idempotency, error shape, pagination and the initial ticket lifecycle.
 
 La fuente normativa OpenAPI 3.1 es [`static/openapi/hashpass-events-v1.yaml`](pathname:///openapi/hashpass-events-v1.yaml). Define autenticación, scopes, idempotencia, errores, paginación y el ciclo inicial del ticket.
+
+## Bootstrap operations / Operación inicial
+
+Until the self-service Developers UI is available, an authorized operator can create a test application and write its one-time secret directly to a new mode-0600 file:
+
+```bash
+pnpm developer-key:provision -- \
+  --environment test --organization bsl --name tikbsl \
+  --event colombia2026 --output /secure/path/bsl-test.key
+```
+
+The database receives only a SHA-256 digest of a 256-bit random key. The command refuses to overwrite the output file. Transfer that file through the approved secret manager, then delete the local copy. / La base recibe únicamente el digest SHA-256 de una clave aleatoria de 256 bits. El comando no sobrescribe el archivo de salida. Transfiéralo mediante el gestor de secretos aprobado y elimine la copia local.

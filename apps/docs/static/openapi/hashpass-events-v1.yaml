@@ -11,9 +11,9 @@ info:
     so integrations do not depend on a single language. Payment approval MUST be
     verified server-to-server before ticket issuance.
 servers:
-  - url: https://api.hashpass.tech/v1
+  - url: https://api.hashpass.tech/api/v1
     description: Live / Producción
-  - url: https://api-dev.hashpass.tech/v1
+  - url: https://api-dev.hashpass.tech/api/v1
     description: Test / Pruebas
 security:
   - bearerKey: []
@@ -51,7 +51,9 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/PaymentRejected'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/PaymentUnavailable'}
     get:
       tags: [Tickets]
       operationId: listTickets
@@ -170,11 +172,13 @@ components:
     PaymentEvidence:
       type: object
       additionalProperties: false
-      required: [provider, reference, status]
+      required: [provider, transactionId, reference, amountInCents, currency]
       properties:
-        provider: {type: string, enum: [wompi, other]}
+        provider: {type: string, const: wompi}
+        transactionId: {type: string, minLength: 1, maxLength: 255}
         reference: {type: string, minLength: 1, maxLength: 255}
-        status: {type: string, const: approved}
+        amountInCents: {type: integer, minimum: 1}
+        currency: {type: string, const: COP}
     Ticket:
       type: object
       required: [id, eventId, externalReference, ticketTypeId, status, attendee, createdAt]
@@ -214,6 +218,12 @@ components:
       content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
     Conflict:
       description: State or idempotency conflict / Conflicto de estado o idempotencia
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+    PaymentRejected:
+      description: Payment is not approved or does not match / Pago no aprobado o no coincide
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+    PaymentUnavailable:
+      description: Payment verification temporarily unavailable / Verificación temporalmente no disponible
       content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
     RateLimited:
       description: Rate limited / Límite excedido

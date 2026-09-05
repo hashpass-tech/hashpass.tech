@@ -1,6 +1,7 @@
 import { AuthQrClient } from "./auth-qr/client.js";
 import { HashpassAuth, MemorySessionStore } from "./auth/client.js";
 import { HashpassError } from "./errors.js";
+import { EventsClient } from "./events/client.js";
 import { QrLinksClient } from "./qr-links/client.js";
 import { SupportClient } from "./support/client.js";
 import { HttpTransport } from "./transport.js";
@@ -19,6 +20,8 @@ export class HashpassClient {
   readonly authQr: AuthQrClient;
   /** "HashPass Links": custom/trackable QR link creation and management, backed by the same service as authQr -- see linksApiBaseUrl. */
   readonly qrLinks: QrLinksClient;
+  /** Server-to-server event credential issuance and lifecycle operations. */
+  readonly events: EventsClient;
 
   constructor(options: HashpassSdkOptions) {
     validateOptions(options);
@@ -47,6 +50,7 @@ export class HashpassClient {
     this.auth = new HashpassAuth(authTransport, options.sessionStore ?? new MemorySessionStore());
     const resolvedAuth = options.auth ?? this.auth;
     const transport = new HttpTransport({ ...shared, auth: resolvedAuth });
+    this.events = new EventsClient(transport);
     this.support = new SupportClient(transport);
     this.authQr = new AuthQrClient({
       baseUrl: options.linksApiBaseUrl,
