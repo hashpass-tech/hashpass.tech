@@ -1,0 +1,6 @@
+.next/
+out/
+coverage/
+.env*.local
+convex/_generated/*
+!convex/_generated/server.ts

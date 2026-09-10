@@ -1,0 +1,32 @@
+name: LiveOps checks
+on:
+  pull_request:
+    paths:
+      - 'apps/liveops/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/liveops-build.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'apps/liveops/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter hashpass-liveops typecheck
+      - run: pnpm test:liveops
+      - run: pnpm build:liveops

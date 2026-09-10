@@ -1,0 +1,28 @@
+{
+  "name": "hashpass-liveops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack -p 3100",
+    "build": "next build --webpack",
+    "start": "next start -p 3100",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "convex": "^1.45.0",
+    "lucide-react": "^0.548.0",
+    "next": "16.2.9",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "~19.0.10",
+    "@types/react-dom": "^19.2.2",
+    "typescript": "~5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
