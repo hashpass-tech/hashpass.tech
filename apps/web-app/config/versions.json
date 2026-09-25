@@ -3,17 +3,28 @@
   "_source": "This file is generated from apps/web-app/package.json",
   "_instructions": "Run npm run version:update or npm run release:patch from apps/web-app to update it.",
   "currentVersion": {
-    "version": "1.0.32",
-    "buildNumber": 20260825045036,
-    "releaseDate": "2026-08-25",
+    "version": "1.0.33",
+    "buildNumber": 20260925170418,
+    "releaseDate": "2026-09-25",
     "releaseType": "stable",
     "environment": "production",
     "features": [],
     "bugfixes": [],
     "breakingChanges": [],
-    "notes": "Version 1.0.32 release"
+    "notes": "Publish LKS legal notice and updated privacy and Terms documentation"
   },
   "versions": [
+    {
+      "version": "1.0.33",
+      "buildNumber": 20260925170418,
+      "releaseDate": "2026-09-25",
+      "releaseType": "stable",
+      "environment": "production",
+      "features": [],
+      "bugfixes": [],
+      "breakingChanges": [],
+      "notes": "Publish LKS legal notice and updated privacy and Terms documentation"
+    },
     {
       "version": "1.0.32",
       "buildNumber": 20260825045036,
