@@ -4,7 +4,7 @@ import {
   type IconInput,
   type MorphHandle,
   type SpringPreset,
-} from "morphicons/react-native";
+} from "./morph-icon-renderer";
 import { Ionicons } from "./vector-icons";
 
 export type { IconInput, MorphHandle, SpringPreset };
