@@ -1,3 +1,13 @@
+## [1.9.69](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.68...v1.9.69) (2026-09-26)
+### Released
+- morph info icon on hover; simplify executive signature
+
+### Release scope
+- Compared with: `v1.9.68` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+
 ## [1.9.68](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.67...v1.9.68) (2026-09-26)
 ### Released
 - normalize escaped lines in privacy scan; sync drawers from canonical docs
