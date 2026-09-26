@@ -66,6 +66,45 @@ it('keeps card descriptions hidden until its morphing info control is requested'
   expect(view.root.findAllByType('article')[0].props.style.height).toBe(238);
 });
 
+it('morphs the collapsed info control on pointer hover and keeps the contract icon after expansion', async () => {
+  await act(async () => { view = create(<HowItWorks />); });
+  const icon = () => view.root.findAllByType('MorphIcon' as any)[0].props.icon;
+
+  expect(icon()).toBe('Maximize2');
+
+  act(() => { view.root.findAllByType('button')[0].props.onPointerEnter?.(); });
+  expect(icon()).toBe('Minimize2');
+
+  act(() => { view.root.findAllByType('button')[0].props.onPointerLeave?.(); });
+  expect(icon()).toBe('Maximize2');
+
+  act(() => { view.root.findAllByType('button')[0].props.onClick(); });
+  expect(view.root.findAllByType('button')[0].props['aria-expanded']).toBe(true);
+  expect(icon()).toBe('Minimize2');
+});
+
+it('keeps collapsed info controls on the outward icon for touch and reduced-motion pointer entry', async () => {
+  const scenarios = [
+    { level: 'full', reduced: false, pointerType: 'touch' },
+    { level: 'none', reduced: false, pointerType: 'mouse' },
+    { level: 'reduced', reduced: false, pointerType: 'mouse' },
+    { level: 'full', reduced: true, pointerType: 'mouse' },
+  ];
+
+  for (const scenario of scenarios) {
+    mockLevel = scenario.level;
+    mockReduced = scenario.reduced;
+    await act(async () => { view = create(<HowItWorks />); });
+
+    const button = view.root.findAllByType('button')[0];
+    expect(button.props['aria-expanded']).toBe(false);
+    act(() => { button.props.onPointerEnter?.({ pointerType: scenario.pointerType }); });
+    expect(view.root.findAllByType('MorphIcon' as any)[0].props.icon).toBe('Maximize2');
+
+    act(() => { view.unmount(); });
+  }
+});
+
 it('replays entry direction when the section returns while scrolling upward', async () => {
   const originalRaf = global.requestAnimationFrame;
   const originalCancel = global.cancelAnimationFrame;

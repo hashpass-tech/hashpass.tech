@@ -23,7 +23,7 @@ export function renderEdwardCalderonHashpassEmailSignature(): HashpassEmailSigna
     html: renderTemplate('email-signature', 'en'),
     text: [
       'Edward Calderón',
-      'Co-founder & CEO · HASHPASS',
+      'Co-founder & CEO',
       'edward@hashpass.app | https://hashpass.tech | https://www.linkedin.com/in/edwardca-dev/',
     ].join('\n'),
     portraitUrl,

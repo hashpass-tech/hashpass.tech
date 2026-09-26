@@ -50,6 +50,7 @@ function useScrollDirection(): ScrollDirection {
 function Card({ card, index, dark, animate, sectionVisible, direction }: { card: typeof cards[number]; index: number; dark: boolean; animate: boolean; sectionVisible: boolean; direction: ScrollDirection }) {
   const ref = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const [infoHovered, setInfoHovered] = useState(false);
   const cardVisible = useInView(ref, { amount: 0.22, once: false });
   const visible = sectionVisible && cardVisible;
   const { t } = useTranslation('index');
@@ -60,6 +61,10 @@ function Card({ card, index, dark, animate, sectionVisible, direction }: { card:
     lksWallet: t('howItWorks.scenes.lksWallet', '$LKS WALLET'), availableBalance: t('howItWorks.scenes.availableBalance', 'AVAILABLE BALANCE'),
   };
   const expandedIcon = expandedIcons[card.id as keyof typeof expandedIcons];
+  const showCollapseIcon = expanded || (animate && infoHovered);
+  const handleInfoPointerEnter = (event?: React.PointerEvent<HTMLButtonElement>) => {
+    if (animate && event?.pointerType !== 'touch') setInfoHovered(true);
+  };
   return <motion.article ref={ref}
     className="hashpass-how-card"
     style={{ position: 'relative', background: uiPalette(dark).surface, border: `1px solid ${uiPalette(dark).border}`, borderRadius: uiTokens.radius.card, padding: 'clamp(18px, 2vw, 24px)', minWidth: 0, minHeight: 238, height: expanded ? 'auto' : 238, boxSizing: 'border-box', overflow: 'hidden' }}
@@ -67,8 +72,8 @@ function Card({ card, index, dark, animate, sectionVisible, direction }: { card:
     animate={animate ? (visible ? { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' } : { opacity: 0, y: direction === 'down' ? 22 : -22, scale: 0.99, filter: 'blur(5px)' }) : undefined}
     transition={{ duration: 0.58, delay: visible ? 0.08 + (index % 2) * 0.08 : 0, ease: [0.22, 1, 0.36, 1] }}
     whileHover={animate ? { scale: 1.006, transition: { duration: 0.18 } } : undefined}>
-    <button type="button" className="hashpass-how-info" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-label={expanded ? t('howItWorks.closeInfo', 'Collapse details') : t('howItWorks.moreInfo', 'Expand details')} style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, width: 44, height: 44, padding: 0, borderRadius: uiTokens.radius.circle, border: `1px solid ${uiPalette(dark).border}`, background: uiPalette(dark).surface, color: uiPalette(dark).muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
-      <MorphIcon icon={expanded ? LucideCollapse : LucideExpand} size={16} color={uiPalette(dark).muted} strokeWidth={1.8} spring="snappy" fallbackIconName={expanded ? 'contract-outline' : 'expand-outline'} />
+    <button type="button" className="hashpass-how-info" onClick={() => setExpanded(value => !value)} onPointerEnter={handleInfoPointerEnter} onPointerLeave={() => setInfoHovered(false)} aria-expanded={expanded} aria-label={expanded ? t('howItWorks.closeInfo', 'Collapse details') : t('howItWorks.moreInfo', 'Expand details')} style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, width: 44, height: 44, padding: 0, borderRadius: uiTokens.radius.circle, border: `1px solid ${uiPalette(dark).border}`, background: uiPalette(dark).surface, color: uiPalette(dark).muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+      <MorphIcon icon={showCollapseIcon ? LucideCollapse : LucideExpand} size={16} color={uiPalette(dark).muted} strokeWidth={1.8} spring="snappy" fallbackIconName={showCollapseIcon ? 'contract-outline' : 'expand-outline'} />
       <span role="tooltip" className="hashpass-how-tooltip">{expanded ? t('howItWorks.closeInfo', 'Collapse details') : t('howItWorks.moreInfo', 'Expand details')}</span>
     </button>
     {!expanded ? <div aria-hidden="true" className="hashpass-how-scene" style={{ height: 104, borderRadius: uiTokens.radius.media, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, overflow: 'hidden' }}>
