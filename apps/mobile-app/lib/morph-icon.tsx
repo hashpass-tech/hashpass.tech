@@ -4,7 +4,8 @@ import {
   type IconInput,
   type MorphHandle,
   type SpringPreset,
-} from "morphicons/react-native";
+} from "./morph-icon-renderer";
+import { useAnimationLevel } from "../contexts/AnimationLevelContext";
 import { Ionicons } from "./vector-icons";
 
 export type { IconInput, MorphHandle, SpringPreset };
@@ -76,6 +77,8 @@ export const MorphIcon = React.forwardRef<MorphHandle, MorphIconProps>(
     },
     ref,
   ) {
+    const { animationLevel } = useAnimationLevel();
+
     return (
       <MorphIconBoundary
         fallback={
@@ -89,6 +92,7 @@ export const MorphIcon = React.forwardRef<MorphHandle, MorphIconProps>(
           to={to}
           progress={progress}
           spring={spring}
+          reducedMotion={animationLevel === "full" ? "user" : "always"}
           size={size}
           color={color}
           strokeWidth={strokeWidth}

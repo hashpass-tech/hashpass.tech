@@ -9,13 +9,23 @@ const read = (...parts) =>
   fs.readFileSync(path.join(root, ...parts), "utf8");
 
 const wrapper = read("apps/mobile-app/lib/morph-icon.tsx");
+const nativeRenderer = read("apps/mobile-app/lib/morph-icon-renderer.ts");
+const webRenderer = read("apps/mobile-app/lib/morph-icon-renderer.web.ts");
 const home = read("apps/mobile-app/app/home.tsx");
 const dashboard = read("apps/mobile-app/app/(shared)/dashboard/_layout.tsx");
 const auth = read("apps/mobile-app/app/(shared)/auth.tsx");
 const errors = [];
 
-if (!wrapper.includes('from "morphicons/react-native"')) {
-  errors.push("MorphIcon must use the native-compatible Morphicons adapter.");
+if (!wrapper.includes('from "./morph-icon-renderer"')) {
+  errors.push("MorphIcon must use the platform-specific Morphicons adapter.");
+}
+
+if (!nativeRenderer.includes('from "morphicons/react-native"')) {
+  errors.push("Native MorphIcon must use the native-compatible adapter.");
+}
+
+if (!webRenderer.includes('from "morphicons/react"')) {
+  errors.push("Web MorphIcon must use the DOM-compatible adapter.");
 }
 
 for (const [label, source] of [

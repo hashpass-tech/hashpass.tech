@@ -20,16 +20,20 @@
   HASHPASS is the active monorepo for the mobile product, the new <code>hashpass.club</code> web app, shared UI, docs, and deployment tooling.
 </p>
 
-## 📋 Latest Changes (v1.9.69)
+## 📋 Latest Changes (v1.9.70)
 
-### Released
-- morph info icon on hover; simplify executive signature
+### Bug Fixes
+
+* use DOM morph renderer on web ([8713aec](https://github.com/hashpass-tech/hashpass.tech/commit/8713aec67ad18610bccbf7d36f509fda8157a082))
+### Release Highlights
+- use DOM morph renderer on web
 
 ### Release scope
-- Compared with: `v1.9.68` (the previous global release tag)
+- Compared with: `v1.9.69` (the previous global release tag)
 
 ### Affected products & packages
 - Mobile app
+- Release tooling
 
 For full version history, see [CHANGELOG.md](./CHANGELOG.md)
 
