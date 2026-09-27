@@ -1,0 +1,5 @@
+schema_version: 1
+never_invent: [metrics, customers, partnerships, product capabilities, launch dates, traction, technical claims]
+blocked_source_topics: [credentials, secrets, vulnerabilities, exploits, customer data, personal data, private infrastructure]
+required_maturity_labels: [production, prototype, experiment, planned, research]
+require_evidence_for_claims: true

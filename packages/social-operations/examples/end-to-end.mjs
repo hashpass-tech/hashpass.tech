@@ -1,0 +1,10 @@
+import { assertPublishable, qualifySignal, signalFromMergedPullRequest } from '../src/domain.mjs';
+import { approveDraft, applyDrafts, contentItemFromSignal } from '../src/pipeline.mjs';
+const payload = { action: 'closed', __receivedAt: '2026-09-21T10:00:00Z', repository: { full_name: 'hashpass-tech/hashpass.tech' }, pull_request: { number: 500, merged: true, merged_at: '2026-09-21T09:00:00Z', html_url: 'https://github.com/hashpass-tech/hashpass.tech/pull/500', title: 'Document verifiable pass flow', body: 'Documents the production verification flow.', user: { login: 'hashpass-dev' }, labels: [{ name: 'content:public' }, { name: 'content:technical' }], merge_commit_sha: 'example-sha' } };
+let signal = signalFromMergedPullRequest(payload);
+signal = qualifySignal(signal, { isPublic: true, externallyUseful: true, hasEvidence: true, containsSensitiveData: false, distinctFromRecent: true, maturity: 'production', contentPillar: 'product-engineering', actor: 'example-editor' }, ['product-engineering']);
+let item = contentItemFromSignal(signal, { platforms: ['linkedin', 'x'] });
+item = applyDrafts(item, [{ platform: 'linkedin', text: 'How HASHPASS documents verifiable pass flows.', provenance: [payload.pull_request.html_url] }, { platform: 'x', text: 'A technical note on verifiable pass flows.', provenance: [payload.pull_request.html_url] }], { model: 'fixture-model', promptVersion: 'draft-v1' });
+item = approveDraft(item, 'linkedin', 'example-human');
+const outbound = assertPublishable(item, 'linkedin');
+console.log(JSON.stringify({ signalId: signal.signalId, contentId: item.contentId, status: item.status, wouldSchedule: outbound }, null, 2));

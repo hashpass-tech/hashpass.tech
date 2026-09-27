@@ -1,0 +1,15 @@
+schema_version: 1
+brands:
+  hashpass-corporate:
+    display_name: HASHPASS
+    persona: corporate
+    default_languages: [en]
+    approval_required: true
+    autopublish_enabled: false
+    publisher: metricool
+  edward-personal:
+    display_name: Edward C.
+    persona: founder-technical
+    enabled: false
+    approval_required: true
+    reuse_corporate_copy: false

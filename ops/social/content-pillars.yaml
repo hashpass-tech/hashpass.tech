@@ -1,0 +1,17 @@
+schema_version: 1
+pillars:
+  - id: product-engineering
+    name: Product engineering
+    enabled: true
+  - id: verifiable-access
+    name: Verifiable access and identity
+    enabled: true
+  - id: event-operations
+    name: Event operations
+    enabled: true
+  - id: ecosystem-learning
+    name: Ecosystem learning
+    enabled: true
+  - id: community
+    name: Community and education
+    enabled: true

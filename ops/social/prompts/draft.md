@@ -1,0 +1,2 @@
+# Draft — v1
+Use the selected brand, voice, platform guide, campaign configuration, qualified signal, and evidence. Produce a different draft for each platform. Attach provenance references to every material claim. Preserve the recorded maturity vocabulary exactly. Do not infer metrics, customers, partners, capabilities, launch dates, traction, or technical facts. Output structured drafts for review; never request publication.

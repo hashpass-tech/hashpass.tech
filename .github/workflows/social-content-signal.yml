@@ -1,0 +1,28 @@
+name: Social content signal
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  emit-signal:
+    if: github.event.pull_request.merged == true && contains(join(github.event.pull_request.labels.*.name, ','), 'content:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Normalize candidate signal
+        env:
+          EVENT_PATH: ${{ github.event_path }}
+        run: node packages/social-operations/src/github-webhook.mjs < "$EVENT_PATH" > content-signal.json
+      - name: Upload signal for authenticated n8n ingestion
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-content-signal-${{ github.event.pull_request.number }}
+          path: content-signal.json
+          retention-days: 7

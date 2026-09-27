@@ -1303,6 +1303,8 @@ importers:
         specifier: ~5.8.3
         version: 5.8.3
 
+  packages/social-operations: {}
+
   packages/types:
     dependencies:
       '@react-navigation/native':

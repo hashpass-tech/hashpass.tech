@@ -1,0 +1,2 @@
+# Qualify signal — v1
+Return structured JSON only. Evaluate every question independently: public, externally useful, supported by evidence, confidential/personal data, configured pillar fit, substantial difference from recent publications, and maturity. A signal is qualified only when all safeguards pass. Treat security, credentials, vulnerabilities, private infrastructure, customer/person data, and uncertain partnership claims as rejected or requiring human clarification. Never turn a signal into a post.
