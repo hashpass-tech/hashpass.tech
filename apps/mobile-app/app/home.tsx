@@ -62,6 +62,7 @@ import {
 } from "../lib/hashpass-logo";
 import { useAnimationLevel } from "../contexts/AnimationLevelContext";
 import { resolveHeroTaglineWords } from "../lib/home-hero";
+import BslTicketsExperience from "../components/bsl/BslTicketsExperience";
 
 // Import git info to check branch
 let gitInfo: { gitBranch?: string } = {};
@@ -634,6 +635,8 @@ export default function HomeScreen() {
         </View>
 
         <HowItWorks scrollY={scrollY} />
+
+        {!isGlobalEventTenant() && <BslTicketsExperience />}
 
 
 

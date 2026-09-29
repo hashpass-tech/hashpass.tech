@@ -349,6 +349,7 @@ function ThemedContent() {
   const isAuthFlow = (segments[0] === '(shared)' && (segments as string[])[1] === 'auth') || pathname.startsWith('/(shared)/auth') || pathname.startsWith('/auth');
   const isEventPublic = isPublicEventRoute(pathname);
   const isHomePage = pathname === '/home' || pathname === '/' || pathname === '/index';
+  const isTicketPage = pathname === '/tickets' || pathname === '/ticket' || pathname === '/tcikets';
   // Public pages that don't require authentication
   const isPublicPage =
     pathname === '/docs' ||
@@ -365,6 +366,7 @@ function ThemedContent() {
     pathname === '/(shared)/delete-account' ||
     pathname === '/status' ||
     pathname === '/demo';
+  const canAccessPublicPage = isPublicPage || isTicketPage;
 
   // Handle loading state and splash screen
   useEffect(() => {
@@ -457,7 +459,7 @@ function ThemedContent() {
         }
 
         return scheduleAuthRedirect('dashboard');
-      } else if (!isLoggedIn && !isAuthFlow && !isEventPublic && !isHomePage && !isPublicPage) {
+      } else if (!isLoggedIn && !isAuthFlow && !isEventPublic && !isHomePage && !canAccessPublicPage) {
         if (shouldDelayRedirectForRecentAuth()) {
           triggerAuthRecheck();
           return;
@@ -466,7 +468,7 @@ function ThemedContent() {
         return scheduleAuthRedirect('general');
       }
     }
-  }, [isLoggedIn, isAuthFlow, isEventPublic, isHomePage, isPublicPage, isReady, isLoading, router, pathname, lastRedirectTime]);
+  }, [isLoggedIn, isAuthFlow, isEventPublic, isHomePage, canAccessPublicPage, isReady, isLoading, router, pathname, lastRedirectTime]);
 
   // Show loading state
   if (isLoading || !isReady || showSplash) {
