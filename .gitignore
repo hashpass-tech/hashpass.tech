@@ -31,6 +31,8 @@ apps/video-studio/public/recordings/**
 # recording authenticated flows (dashboard, speakers, meetings) — never commit.
 apps/video-studio/.recording-state/
 package-lock.json
+!packages/infra/lambda/package-lock.json
+!packages/plane-mcp-gateway/package-lock.json
 
 # Expo
 .expo/
@@ -133,3 +135,38 @@ assets/openproof/*.png
 assets/openproof/*.mp4
 apps/web-app/public/openproof/*.png
 apps/web-app/public/openproof/*.mp4
+
+# Operations are private by default. Track only portable, provider-neutral
+# templates required to reproduce the service contract; keep host access,
+# business configuration, tests, and operator automation outside the public
+# repository.
+/ops/*
+!/ops/self-hosted/
+/ops/self-hosted/*
+!/ops/self-hosted/.env.example
+!/ops/self-hosted/README.md
+!/ops/self-hosted/compose.yaml
+!/ops/self-hosted/deploy.sh
+!/ops/self-hosted/backups/
+/ops/self-hosted/backups/*
+!/ops/self-hosted/backups/backup.sh
+!/ops/self-hosted/backups/restore.sh
+!/ops/self-hosted/caddy/
+/ops/self-hosted/caddy/*
+!/ops/self-hosted/caddy/Caddyfile
+!/ops/self-hosted/frappe/
+/ops/self-hosted/frappe/*
+!/ops/self-hosted/frappe/compose.yaml
+!/ops/self-hosted/plane/
+/ops/self-hosted/plane/*
+!/ops/self-hosted/plane/compose.yaml
+!/ops/self-hosted/mcp/
+/ops/self-hosted/mcp/*
+!/ops/self-hosted/mcp/README.md
+!/ops/self-hosted/mcp/compose.yaml
+!/ops/self-hosted/tests/
+/ops/self-hosted/tests/*
+!/ops/self-hosted/tests/mcp-oauth-compose.test.mjs
+!/ops/self-hosted/config/
+/ops/self-hosted/config/*
+!/ops/self-hosted/config/mcp.json.example

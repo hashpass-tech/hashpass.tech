@@ -20,22 +20,18 @@
   HASHPASS is the active monorepo for the mobile product, the new <code>hashpass.club</code> web app, shared UI, docs, and deployment tooling.
 </p>
 
-## 📋 Latest Changes (v1.9.71)
+## 📋 Latest Changes (v1.9.76)
 
-### Features
-
-* improve public event and install experiences ([6020c7c](https://github.com/hashpass-tech/hashpass.tech/commit/6020c7c7cbf2ddfcaeb5ad1a8440611ed961d240))
-### Release Highlights
-- improve public event and install experiences
+### Released
+- refresh Helpdesk proxy after deploy; use external Plane object storage; restore self-hosted deployment path
 
 ### Release scope
-- Compared with: `v1.9.70` (the previous global release tag)
+- Compared with: `v1.9.75` (the previous global release tag)
 
 ### Affected products & packages
-- Club web
 - Mobile app
-- Shared UI
-- Documentation
+- Infrastructure
+- Self-hosted operations
 - Release tooling
 
 For full version history, see [CHANGELOG.md](./CHANGELOG.md)

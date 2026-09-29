@@ -18,6 +18,24 @@
         "PROD_DB_URL"
       ]
     },
+    "better-auth-development": {
+      "tenant": "better-auth",
+      "environment": "development",
+      "inheritDefaultGroups": false,
+      "databaseUrlEnv": [
+        "BETTER_AUTH_DATABASE_URL_DEV",
+        "BETTER_AUTH_DATABASE_URL"
+      ]
+    },
+    "better-auth-production": {
+      "tenant": "better-auth",
+      "environment": "production",
+      "inheritDefaultGroups": false,
+      "databaseUrlEnv": [
+        "BETTER_AUTH_DATABASE_URL_PROD",
+        "BETTER_AUTH_DATABASE_URL"
+      ]
+    },
     "bsl-development": {
       "tenant": "bsl",
       "environment": "development",
@@ -74,11 +92,24 @@
       "event-search-aliases",
       "business-invite-campaigns"
     ],
-    "bsl-production": ["event-search-aliases", "business-invite-campaigns"]
+    "better-auth-development": [
+      "better-auth-mcp-oauth"
+    ],
+    "better-auth-production": [
+      "better-auth-mcp-oauth"
+    ],
+    "bsl-production": [
+      "event-search-aliases",
+      "business-invite-campaigns"
+    ]
   },
   "groups": {
+    "better-auth-mcp-oauth": [
+      "db/migrations/V106__better_auth_mcp_oauth.sql"
+    ],
     "event-scoped-speakers": [
-      "db/migrations/V106__scope_legacy_speakers_by_event.sql"
+      "db/migrations/V107__scope_legacy_speakers_by_event.sql",
+      "db/migrations/V108__enforce_event_scoped_speaker_admin_roles.sql"
     ],
     "event-ingestion": [
       "db/migrations/V082__database_event_source_ingestion.sql"
