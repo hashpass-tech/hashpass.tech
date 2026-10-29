@@ -7,7 +7,10 @@ const ROUTE_EVENT_IDS: Record<string, string> = {
   // Keep the short event campaign URL pointed at the current BSL stop in Bogotá.
   bsl: 'colombia2026',
   'bsl-on-tour': 'bsl',
+  cbweek: 'cbweek2026',
 };
+
+export const FEATURED_ATTENDING_EVENT_SLUGS = ['bsl', 'cbweek'] as const;
 
 const POWERED_BY_LOGO = '/logo-full-hashpass-white-cyan.svg';
 
@@ -28,8 +31,31 @@ export const ATTENDING_EVENT_SLUGS = Array.from(
     ...Object.keys(EVENTS).filter((id) => id !== 'bsl' && id !== 'default'),
     'bsl',
     'bsl-on-tour',
+    'cbweek',
   ]),
 );
+
+function todayInBogota(): string {
+  const dateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const year = dateParts.find((part) => part.type === 'year')?.value || '1970';
+  const month = dateParts.find((part) => part.type === 'month')?.value || '01';
+  const day = dateParts.find((part) => part.type === 'day')?.value || '01';
+  return `${year}-${month}-${day}`;
+}
+
+export function getUpcomingFeaturedAttendingEvents(
+  today = todayInBogota(),
+): AttendingEventData[] {
+  return FEATURED_ATTENDING_EVENT_SLUGS.flatMap((eventSlug) => {
+    const event = resolveAttendingEvent(eventSlug);
+    if (!event) return [];
+    const lastEventDay = (event.eventEndDate || event.eventStartDate || '').slice(0, 10);
+    if (lastEventDay && lastEventDay < today) return [];
+    return [makeAttendingEventData(event, eventSlug)];
+  });
+}
 
 export function resolveAttendingEvent(eventSlug: string): EventConfig | null {
   const eventId = ROUTE_EVENT_IDS[eventSlug] ?? eventSlug;
@@ -89,14 +115,19 @@ export function makeAttendingEventData(event: EventConfig, eventSlug: string): A
   };
 }
 
-export function makeAttendingMetadata(event: EventConfig, eventSlug: string): Metadata {
+export function makeAttendingMetadata(event: EventConfig, eventSlug: string, standaloneHostRoute = false): Metadata {
   const eventName = event.title || event.name;
   const logoSrc = makeAttendingEventData(event, eventSlug).logoSrc;
+  const pageUrl = standaloneHostRoute
+    ? `https://attending.hashpass.club/${eventSlug}/`
+    : `https://hashpass.club/attending/${eventSlug}/`;
   return {
-    title: `Attending ${eventName}`,
+    title: { absolute: `Attending ${eventName} | HASHPASS Club` },
     description: `Create a personal, event-branded image for ${eventName}. A shared image expresses your intention; it is not an RSVP or ticket.`,
+    alternates: { canonical: pageUrl },
     openGraph: {
       type: 'website',
+      url: pageUrl,
       title: `Attending ${eventName}`,
       description: `Make a personal event image for ${eventName}.`,
       images: [logoSrc],

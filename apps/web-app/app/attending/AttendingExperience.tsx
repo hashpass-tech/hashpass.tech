@@ -59,6 +59,25 @@ function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase() || 'HP';
 }
 
+function normalizeSocialHandle(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  let handle = trimmed.replace(/^@+/, '');
+  if (/^(https?:\/\/|www\.)/i.test(trimmed) || /^[\w.-]+\.[a-z]{2,}\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      handle = pathParts[pathParts.length - 1] || parsed.hostname.replace(/^www\./i, '');
+    } catch {
+      handle = trimmed;
+    }
+  }
+
+  const cleaned = handle.replace(/^@+/, '').replace(/[/?#].*$/, '').replace(/\s+/g, '').slice(0, 40);
+  return cleaned ? `@${cleaned}` : '';
+}
+
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not create image file.')), 'image/png');
@@ -81,6 +100,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
 
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
+  const [socialProfile, setSocialProfile] = useState('');
   const [photoSource, setPhotoSource] = useState<AttendeePhotoSource>('initials');
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -98,6 +118,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
     metadataText(userMetadata, ['job_title', 'title']),
     metadataText(userMetadata, ['company', 'organization']),
   ].filter(Boolean).join(' · ');
+  const profileSocial = metadataText(userMetadata, ['social_handle', 'socialHandle', 'handle']);
   const profilePhoto = metadataText(userMetadata, ['avatar_url', 'picture', 'avatar', 'photo_url']);
   const currentPhoto = photoSource === 'hashpass'
     ? profilePhoto || null
@@ -124,6 +145,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
       if (previousUserIdRef.current) {
         setName('');
         setRole('');
+        setSocialProfile('');
         setPhotoSource('initials');
         setUploadedPhoto(null);
         if (uploadedPhotoRef.current) URL.revokeObjectURL(uploadedPhotoRef.current);
@@ -137,9 +159,10 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
     previousUserIdRef.current = user.id;
     if (profileName) setName(profileName);
     if (profileRole) setRole(profileRole);
+    if (profileSocial) setSocialProfile(profileSocial);
     if (profilePhoto) setPhotoSource('hashpass');
     setSignInOpen(false);
-  }, [user, profileName, profileRole, profilePhoto]);
+  }, [user, profileName, profileRole, profileSocial, profilePhoto]);
 
   useEffect(() => () => {
     if (uploadedPhotoRef.current) URL.revokeObjectURL(uploadedPhotoRef.current);
@@ -153,6 +176,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
     dateLabel,
     attendeeName: displayName,
     attendeeRole: role,
+    attendeeSocialHandle: normalizeSocialHandle(socialProfile),
     logoSrc: event.logoSrc,
     avatarSrc: currentPhoto,
     artworkTemplate: event.artworkTemplate,
@@ -163,7 +187,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
       past: artPast,
       emptyName: artEmptyName,
     },
-  }), [eventName, event.shortName, event.logoSrc, event.artworkTemplate, event.venue, location, dateLabel, displayName, role, currentPhoto, pastEvent, artUpcoming, artPast, artEmptyName, t]);
+  }), [eventName, event.shortName, event.logoSrc, event.artworkTemplate, event.venue, location, dateLabel, displayName, role, socialProfile, currentPhoto, pastEvent, artUpcoming, artPast, artEmptyName, t]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -294,7 +318,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="HASHPASS Club home">
+        <a className={styles.brand} href="https://hashpass.club/" aria-label="HASHPASS Club home">
           <img src="/logo-hashpass.svg" alt="" />
           <span>HASHPASS</span>
         </a>
@@ -406,7 +430,19 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
                 maxLength={54}
                 accessibilityLabel={t('roleLabel')}
               />
+              <FormField
+                mode={mode}
+                label={t('socialHandleLabel')}
+                value={socialProfile}
+                onChangeText={setSocialProfile}
+                placeholder={t('socialHandlePlaceholder')}
+                maxLength={120}
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel={t('socialHandleLabel')}
+              />
             </div>
+            <p className={styles.socialNote}>{t('socialHandleHint')}</p>
 
             <div className={styles.privacyNote}>
               <span className={styles.privacyIcon}><Check size={16} /></span>

@@ -447,7 +447,11 @@ export async function drawAttendingArtwork(
   context.lineWidth = 2;
   context.stroke();
 
-  const identity = [options.attendeeName.trim() || options.intentions.emptyName, options.attendeeRole.trim()].filter(Boolean).join('  ·  ');
+  const identity = [
+    options.attendeeName.trim() || options.intentions.emptyName,
+    options.attendeeRole.trim(),
+    options.attendeeSocialHandle,
+  ].filter(Boolean).join('  ·  ');
   context.textAlign = 'center';
   context.fillStyle = '#ffffff';
   context.font = '700 33px Manrope, sans-serif';

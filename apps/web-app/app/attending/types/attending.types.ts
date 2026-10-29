@@ -1,6 +1,21 @@
+import type { ReactNode } from 'react';
+
 export type AttendingLocale = 'en' | 'es';
 
 export type AttendeePhotoSource = 'hashpass' | 'upload' | 'initials';
+
+export type AttendingRoutePageProps = { params: Promise<{ eventSlug: string }> };
+
+export interface AttendingLandingProps {
+  events: AttendingEventData[];
+}
+
+export interface AttendingLandingStepProps {
+  icon: ReactNode;
+  number: string;
+  title: string;
+  body: string;
+}
 
 export interface AttendingArtworkTemplate {
   backgroundSrc: string | null;
@@ -36,6 +51,7 @@ export interface AttendingArtworkOptions {
   dateLabel: string;
   attendeeName: string;
   attendeeRole: string;
+  attendeeSocialHandle: string;
   logoSrc: string;
   avatarSrc: string | null;
   artworkTemplate: AttendingArtworkTemplate;
