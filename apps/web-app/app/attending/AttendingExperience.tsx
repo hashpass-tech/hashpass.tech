@@ -135,6 +135,7 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
   const artUpcoming = t('artUpcoming');
   const artPast = t('artPast');
   const artEmptyName = t('yourName');
+  const artPoweredBy = t('poweredBy');
 
   useEffect(() => {
     setPastEvent(!!event.endDate && event.endDate.slice(0, 10) < new Date().toISOString().slice(0, 10));
@@ -180,14 +181,14 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
     logoSrc: event.logoSrc,
     avatarSrc: currentPhoto,
     artworkTemplate: event.artworkTemplate,
-    poweredByLabel: t('poweredBy'),
+    poweredByLabel: artPoweredBy,
     pastEvent,
     intentions: {
       upcoming: artUpcoming,
       past: artPast,
       emptyName: artEmptyName,
     },
-  }), [eventName, event.shortName, event.logoSrc, event.artworkTemplate, event.venue, location, dateLabel, displayName, role, socialProfile, currentPhoto, pastEvent, artUpcoming, artPast, artEmptyName, t]);
+  }), [eventName, event.shortName, event.logoSrc, event.artworkTemplate, event.venue, location, dateLabel, displayName, role, socialProfile, currentPhoto, pastEvent, artUpcoming, artPast, artEmptyName, artPoweredBy]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -500,9 +501,27 @@ export function AttendingExperience({ event }: { event: AttendingEventData }) {
 
             <div className={styles.socialShare}>
               <span>{t('shareOn')}</span>
-              <button type="button" onClick={() => openSocialShare('x')}>X <ArrowUpRight size={14} /></button>
-              <button type="button" onClick={() => openSocialShare('linkedin')}>LinkedIn <ArrowUpRight size={14} /></button>
-              <button type="button" onClick={copyEventLink}>{lastAction === 'copy' ? <Check size={14} /> : null}{t('copyPageLink')}</button>
+              <ActionButton
+                mode={mode}
+                label="X"
+                trailingIcon={<ArrowUpRight size={14} />}
+                variant="ghost"
+                onPress={() => openSocialShare('x')}
+              />
+              <ActionButton
+                mode={mode}
+                label="LinkedIn"
+                trailingIcon={<ArrowUpRight size={14} />}
+                variant="ghost"
+                onPress={() => openSocialShare('linkedin')}
+              />
+              <ActionButton
+                mode={mode}
+                label={t('copyPageLink')}
+                leadingIcon={lastAction === 'copy' ? <Check size={14} /> : undefined}
+                variant="ghost"
+                onPress={copyEventLink}
+              />
             </div>
             <p className={styles.shareHint}>{t('shareHint')}</p>
               </div>

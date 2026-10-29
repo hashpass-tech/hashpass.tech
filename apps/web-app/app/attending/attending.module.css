@@ -136,8 +136,7 @@
   text-decoration: none;
 }
 
-.eventMeta a:hover,
-.socialShare button:hover {
+.eventMeta a:hover {
   text-decoration: underline;
 }
 
@@ -236,7 +235,6 @@
 }
 
 .sourceCard:focus-visible,
-.socialShare button:focus-visible,
 .brand:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -454,20 +452,6 @@
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-}
-
-.socialShare button {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .shareHint {
