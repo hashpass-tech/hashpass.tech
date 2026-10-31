@@ -20,19 +20,20 @@
   HASHPASS is the active monorepo for the mobile product, the new <code>hashpass.club</code> web app, shared UI, docs, and deployment tooling.
 </p>
 
-## 📋 Latest Changes (v1.9.198)
+## 📋 Latest Changes (v1.9.199)
 
 ### Bug Fixes
 
-* **networking:** avoid speaker lookup 406s ([5baba51](https://github.com/hashpass-tech/hashpass.tech/commit/5baba5155443ac6cd17023d158ad3e2a6dd6f3b5))
+* route mobile data through authenticated APIs ([cdf7a81](https://github.com/hashpass-tech/hashpass.tech/commit/cdf7a815adf0f0a1a2f71388fbdfe7a2098d1925)), closes [#564](https://github.com/hashpass-tech/hashpass.tech/issues/564)
 ### Release Highlights
-- avoid speaker lookup 406s
+- route mobile data through authenticated APIs
 
 ### Release scope
-- Compared with: `v1.9.197` (the previous global release tag)
+- Compared with: `v1.9.198` (the previous global release tag)
 
 ### Affected products & packages
 - Mobile app
+- Release tooling
 
 For full version history, see [CHANGELOG.md](./CHANGELOG.md)
 
