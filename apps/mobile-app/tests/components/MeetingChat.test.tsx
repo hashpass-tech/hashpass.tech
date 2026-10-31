@@ -75,10 +75,11 @@ async function renderMeetingChat() {
 
 beforeEach(() => {
   mockDbUserId = 'requester-1';
+  mockShowError.mockReset();
   mockParticipantData = {
     success: true,
     otherParticipant: { id: 'speaker-1', name: 'Speaker', avatar: mockSpeaker.imageurl },
-    currentParticipant: null,
+    currentParticipant: { id: 'requester-1', name: 'Requester', avatar: null },
   };
   mockApiRequest.mockReset().mockImplementation(async () => ({
     success: true,
@@ -98,6 +99,7 @@ it('loads the canonical speaker profile through the authenticated chat API', asy
   expect(chat.props.otherParticipantId).toBe('speaker-1');
   expect(chat.props.otherParticipantAvatar).toBe(mockSpeaker.imageurl);
   expect(chat.props.otherParticipantName).toBe('Speaker');
+  expect(chat.props.currentUserId).toBe('requester-1');
   expect(chat.props.currentUserAvatar).toBeUndefined();
 
   await act(async () => view.unmount());
@@ -108,13 +110,14 @@ it('uses the speaker profile for the speaker and the requester profile for the p
   mockParticipantData = {
     success: true,
     otherParticipant: { id: 'requester-1', name: 'Requester profile', avatar: 'https://cdn.example.com/requester.png' },
-    currentParticipant: { name: mockSpeaker.name, avatar: mockSpeaker.imageurl },
+    currentParticipant: { id: 'speaker-1', name: mockSpeaker.name, avatar: mockSpeaker.imageurl },
   };
 
   const view = await renderMeetingChat();
 
   const chat = view.root.findByType('RealtimeChat' as any);
   expect(chat.props.username).toBe(mockSpeaker.name);
+  expect(chat.props.currentUserId).toBe('speaker-1');
   expect(chat.props.currentUserAvatar).toBe(mockSpeaker.imageurl);
   expect(chat.props.otherParticipantId).toBe('requester-1');
   expect(chat.props.otherParticipantAvatar).toBe('https://cdn.example.com/requester.png');
@@ -130,6 +133,23 @@ it('clears the peer when the speaker profile has no linked chat user', async () 
   const chat = view.root.findByType('RealtimeChat' as any);
   expect(chat.props.otherParticipantId).toBeUndefined();
   expect(mockApiRequest).toHaveBeenCalledTimes(1);
+
+  await act(async () => view.unmount());
+});
+
+it('uses the server-resolved identity while the client auth bridge is still missing dbUserId', async () => {
+  mockDbUserId = '';
+  mockParticipantData = {
+    success: true,
+    otherParticipant: { id: 'speaker-1', name: 'Speaker', avatar: mockSpeaker.imageurl },
+    currentParticipant: { id: 'requester-1', name: 'Requester', avatar: null },
+  };
+
+  const view = await renderMeetingChat();
+
+  const chat = view.root.findByType('RealtimeChat' as any);
+  expect(chat.props.currentUserId).toBe('requester-1');
+  expect(mockShowError).not.toHaveBeenCalled();
 
   await act(async () => view.unmount());
 });

@@ -28,18 +28,11 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
     name: string;
     avatar?: string;
   } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [currentUserName, setCurrentUserName] = useState<string | undefined>();
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>();
 
   const loadMeetingInfo = useCallback(async () => {
-    // Only check authentication after auth has finished loading
-    if (!authLoading && !dbUserId) {
-      console.error('No user ID available for loading meeting info');
-      showError('Error', 'User not authenticated');
-      setLoading(false);
-      return;
-    }
-
     // If auth is still loading, wait
     if (authLoading) {
       return;
@@ -71,11 +64,12 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
       }
 
       setOtherParticipant(participantData.otherParticipant || null);
+      setCurrentUserId(participantData.currentParticipant?.id || dbUserId || undefined);
       setCurrentUserName(participantData.currentParticipant?.name || undefined);
       setCurrentUserAvatar(participantData.currentParticipant?.avatar || undefined);
     } catch (error) {
       console.error('Error loading meeting info:', error);
-      showError('Error', 'Failed to load meeting information');
+      showError('Error', error instanceof Error ? error.message : 'Failed to load meeting information');
     } finally {
       setLoading(false);
     }
@@ -105,6 +99,7 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
         roomName={`meeting_chat_${meetingId}`}
         username={currentUserName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You'}
         meetingId={meetingId}
+        currentUserId={currentUserId}
         otherParticipantId={otherParticipant?.id}
         otherParticipantName={otherParticipant?.name}
         otherParticipantAvatar={otherParticipant?.avatar}

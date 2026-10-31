@@ -29,6 +29,7 @@ export default function RealtimeChat({
   roomName,
   username,
   meetingId,
+  currentUserId,
   otherParticipantId,
   otherParticipantName,
   otherParticipantAvatar,
@@ -36,6 +37,7 @@ export default function RealtimeChat({
 }: RealtimeChatProps) {
   const { isDark } = useTheme();
   const { user, dbUserId } = useAuth();
+  const chatUserId = currentUserId || dbUserId || '';
   const { refreshNotifications } = useNotifications();
   const mode = isDark ? 'dark' : 'light';
   const palette = uiPalette(mode);
@@ -50,8 +52,9 @@ export default function RealtimeChat({
   const ownAvatarUrl = currentUserAvatar || resolveAvatarUrl(user);
 
   // The chat hook refreshes encrypted history and sends through the signed-in
-  // app API. userId must be the real Supabase auth UUID (dbUserId), not Better
-  // Auth's own user.id, because meeting records and local chat keys use it.
+  // app API. Prefer the server-resolved Supabase UUID because a Better Auth
+  // session can be valid before the client-side Supabase bridge populates
+  // dbUserId. Never use Better Auth's own user.id for meeting records or keys.
   const {
     messages,
     sendMessage,
@@ -70,7 +73,7 @@ export default function RealtimeChat({
     meetingId,
     roomName,
     username,
-    userId: dbUserId || '',
+    userId: chatUserId,
     otherParticipantId,
   });
 
@@ -104,15 +107,15 @@ export default function RealtimeChat({
 
   // Listen for new incoming messages and refresh notifications. sender_id
   // is always a real uuid now (set by the hook from meeting_chat_messages),
-  // so this is a plain equality check against dbUserId -- no more
+  // so this is a plain equality check against the resolved chat user ID -- no more
   // email/username substring fallback matching needed.
   useEffect(() => {
-    const incomingMessages = allMessages.filter((msg) => msg.user.id !== dbUserId);
+    const incomingMessages = allMessages.filter((msg) => msg.user.id !== chatUserId);
 
     if (incomingMessages.length > 0) {
       refreshNotifications();
     }
-  }, [allMessages.length, dbUserId, refreshNotifications]);
+  }, [allMessages.length, chatUserId, refreshNotifications]);
 
   // Handle message sending -- encryption + persistence both happen inside
   // sendMessage; this just owns the input/sending UI state.
@@ -226,7 +229,7 @@ export default function RealtimeChat({
   const renderMessage = (message: ChatMessage, index: number) => {
     // sender_id is always dbUserId's real uuid (set server-side from the
     // authenticated RPC caller), so this is a plain equality check.
-    const isOwnMessage = message.user.id === dbUserId;
+    const isOwnMessage = message.user.id === chatUserId;
 
     const isSystemMessage = message.messageType === 'system';
     const isMeetingUpdate = message.messageType === 'meeting_update';

@@ -104,7 +104,7 @@ describe('/api/meetings/chat', () => {
           name: 'Speaker profile',
           avatar: 'https://cdn.example.com/profile.png',
         },
-        currentParticipant: null,
+        currentParticipant: { id: userId, name: 'Requester', avatar: null },
       },
     });
     expect(mockRpc).toHaveBeenCalledWith('get_meeting_chat_participant', {
@@ -277,7 +277,7 @@ describe('/api/meetings/chat', () => {
           name: 'Requester profile',
           avatar: 'https://cdn.example.com/requester.png',
         },
-        currentParticipant: { name: 'Speaker', avatar: 'https://cdn.example.com/speaker.png' },
+        currentParticipant: { id: userId, name: 'Speaker', avatar: 'https://cdn.example.com/speaker.png' },
       },
     });
   });

@@ -114,9 +114,13 @@ export async function GET(request: Request) {
           otherParticipant: otherParticipantId
             ? { id: otherParticipantId, name: otherParticipantName, avatar: otherAvatar }
             : null,
-          currentParticipant: isRequester
-            ? null
-            : { name: speaker?.name || meeting.speaker_name || null, avatar: speaker?.imageurl || null },
+          currentParticipant: {
+            id: auth.userId,
+            name: isRequester
+              ? meeting.requester_name || null
+              : speaker?.name || meeting.speaker_name || null,
+            avatar: isRequester ? null : speaker?.imageurl || null,
+          },
         },
       });
     }

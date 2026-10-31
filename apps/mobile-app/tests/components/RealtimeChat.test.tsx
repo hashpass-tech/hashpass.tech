@@ -9,6 +9,7 @@ const mockSkipKeyRestore = jest.fn();
 const mockCreateKeyBackup = jest.fn();
 const mockRefreshNotifications = jest.fn();
 const mockScrollToBottom = jest.fn();
+const mockUseRealtimeChat = jest.fn((..._args: unknown[]) => mockChatState);
 
 async function restoreKeyFromBackup(...args: unknown[]) {
   const result = await mockRestoreKeyFromBackup(...args);
@@ -129,7 +130,7 @@ jest.mock("../../contexts/NotificationContext", () => ({
 }));
 
 jest.mock("../../hooks/useRealtimeChat", () => ({
-  useRealtimeChat: () => mockChatState,
+  useRealtimeChat: (...args: unknown[]) => mockUseRealtimeChat(...args),
 }));
 
 jest.mock("../../hooks/useChatScroll", () => ({
@@ -149,7 +150,7 @@ import RealtimeChat from "../../components/RealtimeChat";
 
 function renderChat(
   needsKeyRestore = false,
-  avatars: { currentUserAvatar?: string; otherParticipantAvatar?: string } = {},
+  avatars: { currentUserId?: string; currentUserAvatar?: string; otherParticipantAvatar?: string } = {},
 ): ReactTestRenderer {
   mockChatState = { ...mockChatState, needsKeyRestore };
   let view!: ReactTestRenderer;
@@ -246,6 +247,15 @@ it("uses the supplied profile photos for both participants and groups incoming s
   expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/current.png")).toBe(true);
   expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/speaker.png")).toBe(true);
   expect(view.root.findAllByType("Text" as any).filter((node) => node.props.children === "Speaker")).toHaveLength(2);
+});
+
+it("passes the server-resolved Supabase identity into encrypted chat", () => {
+  const view = renderChat(false, { currentUserId: "server-resolved-user" });
+
+  expect(mockUseRealtimeChat).toHaveBeenCalledWith(expect.objectContaining({
+    userId: "server-resolved-user",
+  }));
+  act(() => view.unmount());
 });
 
 it("shows a calm empty state while the conversation has no messages", () => {
