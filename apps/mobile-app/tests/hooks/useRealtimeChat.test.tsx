@@ -337,8 +337,10 @@ describe('useRealtimeChat', () => {
 
     await act(async () => {
       await expect(latest!.createKeyBackup('backup-password')).resolves.toEqual({ success: true });
+      await expect(latest!.restoreKeyFromBackup('backup-password')).resolves.toEqual({ success: true });
     });
     expect(mockBackupChatKeyPair).toHaveBeenCalledWith('my-user-id', 'backup-password');
+    expect(mockRestoreChatKeyPair).toHaveBeenCalledWith('my-user-id', 'backup-password');
     await act(async () => renderer.unmount());
 
     const noUserRenderer = await renderHook({
@@ -474,6 +476,106 @@ describe('useRealtimeChat', () => {
 
     await expect(latest!.sendMessage('hello')).rejects.toThrow(/has not set up secure chat/);
 
+    await act(async () => renderer.unmount());
+  });
+
+  it('keeps chat unavailable without a peer identity and allows clearing local messages', async () => {
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+    });
+
+    expect(latest!.otherKeyMissing).toBe(true);
+    await expect(latest!.sendMessage('hello')).rejects.toThrow('The other participant has not set up secure chat yet');
+    await act(async () => latest!.clearMessages());
+    expect(latest!.messages).toEqual([]);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('refreshes presence and retries loading a peer key before sending', async () => {
+    mockFetchParticipantPublicKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(theirPub);
+    const lastSeenAt = new Date().toISOString();
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') {
+        return { success: true, data: { data: { success: true, messages: [] } } };
+      }
+      if (options.body?.action === 'send') {
+        return { success: true, data: { data: { success: true, id: 'retried-message', created_at: lastSeenAt } } };
+      }
+      return { success: true, data: { data: { success: true, otherLastSeenAt: lastSeenAt } } };
+    });
+    mockEncryptChatMessage.mockReturnValue({ ciphertext: 'ee', nonce: 'ff' });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(latest!.presence['other-user']).toEqual(expect.objectContaining({ isOnline: true }));
+    expect(latest!.otherKeyMissing).toBe(true);
+    await act(async () => {
+      await latest!.sendMessage('Peer is ready now');
+    });
+    expect(mockFetchParticipantPublicKey).toHaveBeenCalledTimes(2);
+    expect(latest!.messages).toEqual([
+      expect.objectContaining({ id: 'retried-message', content: 'Peer is ready now' }),
+    ]);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('surfaces history and key-restore failures without replacing chat data', async () => {
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') return { success: false, error: 'history unavailable' };
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
+    });
+    mockRestoreChatKeyPair.mockResolvedValue({ success: false, error: 'wrong password' });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+    await act(async () => {
+      await flushPromises();
+      await expect(latest!.restoreKeyFromBackup('wrong-password')).resolves.toEqual({
+        success: false,
+        error: 'wrong password',
+      });
+    });
+    expect(latest!.error).toBe('history unavailable');
+    expect(latest!.isConnected).toBe(false);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('reports replacement-key setup failures when restore is skipped', async () => {
+    mockEnsureChatKeyPair.mockRejectedValue(new Error('secure storage unavailable'));
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    await act(async () => {
+      latest!.skipKeyRestore();
+      await flushPromises();
+    });
+
+    expect(latest!.error).toBe('secure storage unavailable');
     await act(async () => renderer.unmount());
   });
 });
