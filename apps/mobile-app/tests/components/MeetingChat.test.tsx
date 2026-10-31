@@ -154,6 +154,22 @@ it('uses the server-resolved identity while the client auth bridge is still miss
   await act(async () => view.unmount());
 });
 
+it('surfaces an authentication error returned by the server API when the session is actually invalid', async () => {
+  mockDbUserId = '';
+  mockApiRequest.mockResolvedValue({ success: false, error: 'Unauthorized', status: 401 });
+
+  const view = await renderMeetingChat();
+
+  expect(mockApiRequest).toHaveBeenCalledWith('meetings/chat', expect.objectContaining({
+    method: 'GET',
+    params: { meetingId: 'meeting-1', kind: 'participants' },
+    skipEventSegment: true,
+  }));
+  expect(mockShowError).toHaveBeenCalledWith('Error', 'Unauthorized');
+
+  await act(async () => view.unmount());
+});
+
 /*
  * The app API resolves speaker and attendee profile fields server-side. This
  * matters for Better Auth sessions that do not carry a Supabase browser JWT.
