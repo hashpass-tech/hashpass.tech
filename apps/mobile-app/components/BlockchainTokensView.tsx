@@ -3,32 +3,31 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
 import { useTranslation } from '../i18n/i18n';
-import { supabase } from '../lib/supabase';
+import { lukasRewardService } from '../lib/lukas-reward-service';
 
 type BalanceState = { status: 'loading' | 'error' } | { status: 'ready'; amount: string };
 
 // Remount for a different identity: an old account's balance must never flash
 // while the next account's request is pending.
 export default function BlockchainTokensView() {
-  const { dbUserId } = useAuth();
-  return <RewardBalance key={dbUserId ?? 'signed-out'} userId={dbUserId} />;
+  const { dbUserId, isLoggedIn, user } = useAuth();
+  const identityKey = user?.id ?? dbUserId ?? 'signed-out';
+  return <RewardBalance key={identityKey} isSignedIn={isLoggedIn} />;
 }
 
-function RewardBalance({ userId }: { userId: string | null | undefined }) {
+function RewardBalance({ isSignedIn }: { isSignedIn: boolean }) {
   const { colors } = useTheme();
   const { t } = useTranslation('wallet');
   const [balance, setBalance] = useState<BalanceState>({ status: 'loading' });
   const requestId = useRef(0);
   const refresh = useCallback(async () => {
-    if (!userId) return;
+    if (!isSignedIn) return;
     const id = ++requestId.current;
     setBalance({ status: 'loading' });
     try {
-      const { data, error } = await supabase.from('user_balances')
-        .select('balance').eq('user_id', userId).eq('token_symbol', 'LUKAS').maybeSingle();
+      const amount = String(await lukasRewardService.getUserBalance('LUKAS'));
       if (id !== requestId.current) return;
-      const amount = data ? String(data.balance) : '0';
-      if (error || !/^\d+(\.\d+)?$/.test(amount)) {
+      if (!/^\d+(\.\d+)?$/.test(amount)) {
         setBalance({ status: 'error' });
       } else {
         setBalance({ status: 'ready', amount });
@@ -36,11 +35,18 @@ function RewardBalance({ userId }: { userId: string | null | undefined }) {
     } catch {
       if (id === requestId.current) setBalance({ status: 'error' });
     }
-  }, [userId]);
+  }, [isSignedIn]);
 
   useEffect(() => {
     void refresh();
-    const onRefresh = () => { void refresh(); };
+    const onRefresh = (event: Event) => {
+      const value = (event as CustomEvent<{ balance?: number }>).detail?.balance;
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        setBalance({ status: 'ready', amount: String(value) });
+        return;
+      }
+      void refresh();
+    };
     if (Platform.OS === 'web') window.addEventListener('balance:refresh', onRefresh);
     return () => {
       requestId.current += 1;
@@ -53,15 +59,15 @@ function RewardBalance({ userId }: { userId: string | null | undefined }) {
       <Text style={[styles.label, { color: colors.text.secondary }]}>{t('overview.rewardsLabel', 'HASHPASS REWARDS')}</Text>
       <Text style={[styles.title, { color: colors.text.primary }]}>LUKAS</Text>
       <View accessibilityLiveRegion="polite">
-        {!userId ? <Text style={{ color: colors.text.secondary }}>{t('overview.rewardsSignIn', 'Sign in to see your rewards balance.')}</Text>
+        {!isSignedIn ? <Text style={{ color: colors.text.secondary }}>{t('overview.rewardsSignIn', 'Sign in to see your rewards balance.')}</Text>
           : balance.status === 'loading' ? <ActivityIndicator accessibilityLabel={t('overview.loadingRewards', 'Loading rewards')} color={colors.primary} />
           : <Text style={[styles.amount, { color: colors.text.primary }]}>
             {balance.status === 'ready' ? balance.amount : t('overview.unavailable', 'Unavailable')}
           </Text>}
-        {userId && balance.status === 'error' && <Text style={{ color: colors.text.secondary }}>{t('overview.rewardsError', 'Your balance could not be loaded. Please try again.')}</Text>}
+        {isSignedIn && balance.status === 'error' && <Text style={{ color: colors.text.secondary }}>{t('overview.rewardsError', 'Your balance could not be loaded. Please try again.')}</Text>}
       </View>
       <Text style={[styles.description, { color: colors.text.secondary }]}>{t('overview.rewardsNote', 'Your HASHPASS rewards balance is separate from your on-chain assets. No cash value or exchange rate is assumed.')}</Text>
-      {userId && <Pressable accessibilityRole="button" disabled={balance.status === 'loading'}
+      {isSignedIn && <Pressable accessibilityRole="button" disabled={balance.status === 'loading'}
         accessibilityState={{ disabled: balance.status === 'loading' }} onPress={() => { void refresh(); }}
         style={[styles.button, { borderColor: colors.divider }]}>
         <Text style={{ color: colors.text.primary }}>{t('overview.refreshRewards', 'Refresh rewards')}</Text>

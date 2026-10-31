@@ -14,28 +14,28 @@ interface BalanceProviderProps {
 }
 
 export function BalanceProvider({ children }: BalanceProviderProps) {
-  const { user } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refreshBalance = useCallback(async () => {
-    if (!user?.id) return;
+    if (!isLoggedIn) return;
     
     setIsRefreshing(true);
     try {
-      // Force refresh the balance - this will trigger the subscription callback
-      const balance = await lukasRewardService.getUserBalance(user.id, 'LUKAS');
-      console.log('💰 Balance refresh triggered, new balance:', balance);
+      // The backend resolves the account's Supabase identity. Never pass the
+      // provider-specific `user.id` (which may be a Better Auth ID) to a DB query.
+      const balance = await lukasRewardService.getUserBalance('LUKAS');
       
-      // Dispatch custom event to trigger UI refresh in BlockchainTokensView
+      // Update dashboard balance widgets with the backend result.
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('balance:refresh'));
+        window.dispatchEvent(new CustomEvent('balance:refresh', { detail: { balance } }));
       }
     } catch (error) {
       console.error('❌ Error refreshing balance:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [user?.id]);
+  }, [isLoggedIn]);
 
   const value: BalanceContextType = {
     refreshBalance,

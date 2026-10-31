@@ -1,3 +1,19 @@
+## [1.9.199](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.198...v1.9.199) (2026-10-31)
+
+
+### Bug Fixes
+
+* route mobile data through authenticated APIs ([cdf7a81](https://github.com/hashpass-tech/hashpass.tech/commit/cdf7a815adf0f0a1a2f71388fbdfe7a2098d1925)), closes [#564](https://github.com/hashpass-tech/hashpass.tech/issues/564)
+### Release Highlights
+- route mobile data through authenticated APIs
+
+### Release scope
+- Compared with: `v1.9.198` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+- Release tooling
+
 ## [1.9.198](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.197...v1.9.198) (2026-10-31)
 
 

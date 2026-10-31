@@ -30,7 +30,33 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { randomBytes, bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/ciphers/utils.js';
-import { supabase } from './supabase';
+import { apiClient } from './api-client';
+import type { ChatKeyApiData, ChatKeyRequestResult } from '../types/ChatEncryption.types';
+
+async function requestChatKeys(
+  method: 'GET' | 'POST' | 'DELETE',
+  params?: Record<string, string>,
+  body?: Record<string, string>,
+): Promise<ChatKeyRequestResult> {
+  const response = await apiClient.request('chat/keys', {
+    method,
+    params,
+    body,
+    skipEventSegment: true,
+    retries: 0,
+  }) as {
+    success: boolean;
+    data?: { data?: ChatKeyApiData; error?: string } | null;
+    error?: string;
+  };
+  if (!response.success) {
+    return { data: null, error: { message: response.error || 'Chat key request failed' } };
+  }
+  if (response.data?.error) {
+    return { data: null, error: { message: response.data.error } };
+  }
+  return { data: response.data?.data ?? null, error: null };
+}
 
 // @noble's RNG (used to generate keypairs and per-message nonces) requires
 // globalThis.crypto.getRandomValues, which Hermes/React Native does not
@@ -91,9 +117,9 @@ export async function ensureChatKeyPair(userId: string): Promise<Uint8Array> {
   const publicKey = x25519.getPublicKey(privateKey);
   await writePrivateKeyHex(userId, bytesToHex(privateKey));
 
-  const { data, error } = await supabase.rpc('publish_user_chat_public_key', {
-    p_user_id: userId,
-    p_public_key: bytesToHex(publicKey),
+  const { data, error } = await requestChatKeys('POST', undefined, {
+    action: 'publish-public-key',
+    publicKey: bytesToHex(publicKey),
   });
   if (error || !data?.success) {
     throw new Error(`Failed to publish chat public key: ${error?.message || data?.error || 'unknown error'}`);
@@ -113,7 +139,7 @@ export async function loadChatKeyPair(userId: string): Promise<Uint8Array | null
 
 /** Returns null if the other participant hasn't set up chat yet (never opened it on any device). */
 export async function fetchParticipantPublicKey(userId: string): Promise<Uint8Array | null> {
-  const { data, error } = await supabase.rpc('get_user_chat_public_key', { p_user_id: userId });
+  const { data, error } = await requestChatKeys('GET', { kind: 'public-key', userId });
   if (error || !data?.success || !data?.public_key) return null;
   return hexToBytes(data.public_key);
 }
@@ -229,10 +255,10 @@ export async function backupChatKeyPair(
   const privateKey = hexToBytes(privateKeyHex);
   const { encryptedKey, salt } = encryptPrivateKeyForBackup(privateKey, password);
 
-  const { error } = await supabase.rpc('store_chat_key_backup', {
-    p_user_id: userId,
-    p_encrypted_private_key: encryptedKey,
-    p_salt: salt,
+  const { error } = await requestChatKeys('POST', undefined, {
+    action: 'store-backup',
+    encryptedPrivateKey: encryptedKey,
+    salt,
   });
 
   if (error) {
@@ -245,14 +271,12 @@ export async function backupChatKeyPair(
 
 /** Checks whether the user has an encrypted key backup on the server. */
 export async function hasChatKeyBackup(
-  userId: string
+  _userId: string
 ): Promise<{ hasBackup: boolean; createdAt?: string; error?: string }> {
-  const { data, error } = await supabase.rpc('get_chat_key_backup', {
-    p_user_id: userId,
-  });
+  const { data, error } = await requestChatKeys('GET', { kind: 'backup' });
 
   if (error) {
-    if (error.message?.includes('no_backup') || error.details?.includes('no_backup')) {
+    if (error.message?.includes('no_backup')) {
       return { hasBackup: false };
     }
     console.error('[chat-encryption] Failed to check for key backup:', error);
@@ -275,9 +299,7 @@ export async function restoreChatKeyPair(
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   // Fetch the encrypted backup from the server
-  const { data, error } = await supabase.rpc('get_chat_key_backup', {
-    p_user_id: userId,
-  });
+  const { data, error } = await requestChatKeys('GET', { kind: 'backup' });
 
   if (error || !data?.success) {
     return { success: false, error: error?.message || 'no_backup' };
@@ -303,9 +325,9 @@ export async function restoreChatKeyPair(
 
   // Re-publish the public key so other participants can find it
   const publicKey = x25519.getPublicKey(privateKey);
-  const { error: publishError } = await supabase.rpc('publish_user_chat_public_key', {
-    p_user_id: userId,
-    p_public_key: bytesToHex(publicKey),
+  const { error: publishError } = await requestChatKeys('POST', undefined, {
+    action: 'publish-public-key',
+    publicKey: bytesToHex(publicKey),
   });
 
   if (publishError) {
@@ -322,9 +344,7 @@ export async function restoreChatKeyPair(
 export async function deleteChatKeyBackup(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { error } = await supabase.rpc('delete_chat_key_backup', {
-    p_user_id: userId,
-  });
+  const { error } = await requestChatKeys('DELETE');
 
   if (error) {
     console.error('[chat-encryption] Failed to delete key backup:', error);

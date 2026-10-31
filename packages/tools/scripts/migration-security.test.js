@@ -730,6 +730,18 @@ describe('development demo migration plan', () => {
   });
 });
 
+describe('chat key backup migration plan', () => {
+  it('applies the chat key backup schema to both core environments', () => {
+    const config = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+
+    expect(config.profileGroups['core-development']).toContain('chat-key-backup');
+    expect(config.profileGroups['core-production']).toContain('chat-key-backup');
+    expect(config.groups['chat-key-backup']).toContain(
+      'db/migrations/V075__chat_key_backup_restore.sql',
+    );
+  });
+});
+
 describe('verified speaker identity claim migration contract', () => {
   it('claims a preconfigured speaker only after verified signup and applies only preapproved event roles', () => {
     const migration = fs.existsSync(speakerIdentityClaimsMigrationPath)

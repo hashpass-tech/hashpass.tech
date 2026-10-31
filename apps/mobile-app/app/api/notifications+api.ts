@@ -44,7 +44,40 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 
-    return Response.json({ data: data || [], resolvedUserId: identity.supabaseUserId });
+    const notificationRows = data || [];
+    const meetingRequestIds = [...new Set(
+      notificationRows
+        .map((notification: { meeting_request_id?: unknown }) => notification.meeting_request_id)
+        .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0),
+    )];
+
+    const eventIdByMeetingRequestId = new Map<string, string>();
+    if (meetingRequestIds.length > 0) {
+      const { data: meetingRequests, error: meetingRequestsError } = await supabase
+        .from('meeting_requests')
+        .select('id, event_id')
+        .in('id', meetingRequestIds);
+
+      if (meetingRequestsError) {
+        console.error('[notifications] linked meeting request fetch error:', meetingRequestsError);
+        return Response.json({ error: 'Failed to fetch notifications' }, { status: 500 });
+      }
+
+      for (const meetingRequest of meetingRequests || []) {
+        if (typeof meetingRequest.id === 'string' && typeof meetingRequest.event_id === 'string') {
+          eventIdByMeetingRequestId.set(meetingRequest.id, meetingRequest.event_id);
+        }
+      }
+    }
+
+    const enrichedNotifications = notificationRows.map((notification: { meeting_request_id?: string }) => ({
+      ...notification,
+      meeting_request_event_id: notification.meeting_request_id
+        ? eventIdByMeetingRequestId.get(notification.meeting_request_id)
+        : undefined,
+    }));
+
+    return Response.json({ data: enrichedNotifications, resolvedUserId: identity.supabaseUserId });
   } catch (error) {
     console.error('[notifications] unexpected fetch error:', error);
     return Response.json({ error: 'Failed to fetch notifications' }, { status: 500 });

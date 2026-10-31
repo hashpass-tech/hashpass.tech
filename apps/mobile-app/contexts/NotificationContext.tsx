@@ -25,6 +25,8 @@ export interface Notification {
   read_at?: string;
   archived_at?: string;
   meeting_request_id?: string;
+  /** Event for meeting_request_id, resolved by the authenticated notifications API. */
+  meeting_request_event_id?: string;
   speaker_id?: string;
   meeting_id?: string;
 }
