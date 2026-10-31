@@ -1,3 +1,20 @@
+## [1.9.200](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.199...v1.9.200) (2026-10-31)
+
+
+### Bug Fixes
+
+* preserve meeting chat profiles and keys ([f5bdbfa](https://github.com/hashpass-tech/hashpass.tech/commit/f5bdbfa28b98baef523b01c139d140af860027f0))
+### Release Highlights
+- preserve meeting chat profiles and keys
+
+### Release scope
+- Compared with: `v1.9.199` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+- Database migrations
+- Release tooling
+
 ## [1.9.199](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.198...v1.9.199) (2026-10-31)
 
 
