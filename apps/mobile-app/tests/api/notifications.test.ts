@@ -109,6 +109,57 @@ describe('notifications api', () => {
       expect(requestIds).toHaveBeenCalledWith('id', ['request-a', 'request-b']);
     });
 
+    it('returns an error when linked meeting request events cannot be resolved', async () => {
+      mockResolveNotificationIdentity.mockResolvedValue({ supabaseUserId: 'auth-id-123' });
+      mockIsResolveIdentityError.mockReturnValue(false);
+      const notificationRows = [{ id: 'notification-a', meeting_request_id: 'request-a' }];
+      const limit = jest.fn().mockResolvedValue({ data: notificationRows, error: null });
+      const order = jest.fn().mockReturnValue({ limit });
+      const filterByUser = jest.fn().mockReturnValue({ order });
+      const requestIds = jest.fn().mockResolvedValue({ data: null, error: { message: 'db error' } });
+      mockFrom.mockImplementation((table: string) => table === 'notifications'
+        ? { select: () => ({ eq: filterByUser }) }
+        : { select: () => ({ in: requestIds }) });
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { GET } = require('../../app/api/notifications+api');
+      const response = await GET(new Request('https://api.hashpass.tech/api/notifications'));
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error: 'Failed to fetch notifications' });
+      expect(requestIds).toHaveBeenCalledWith('id', ['request-a']);
+    });
+
+    it('leaves the event unset when notification or request IDs are malformed', async () => {
+      mockResolveNotificationIdentity.mockResolvedValue({ supabaseUserId: 'auth-id-123' });
+      mockIsResolveIdentityError.mockReturnValue(false);
+      const notificationRows = [
+        { id: 'notification-a', meeting_request_id: 42 },
+        { id: 'notification-b', meeting_request_id: 'request-b' },
+      ];
+      const limit = jest.fn().mockResolvedValue({ data: notificationRows, error: null });
+      const order = jest.fn().mockReturnValue({ limit });
+      const filterByUser = jest.fn().mockReturnValue({ order });
+      const requestIds = jest.fn().mockResolvedValue({
+        data: [{ id: 'request-b', event_id: 42 }],
+        error: null,
+      });
+      mockFrom.mockImplementation((table: string) => table === 'notifications'
+        ? { select: () => ({ eq: filterByUser }) }
+        : { select: () => ({ in: requestIds }) });
+
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { GET } = require('../../app/api/notifications+api');
+      const response = await GET(new Request('https://api.hashpass.tech/api/notifications'));
+
+      expect(await response.json()).toEqual({
+        data: notificationRows,
+        resolvedUserId: 'auth-id-123',
+      });
+      expect(requestIds).toHaveBeenCalledWith('id', ['request-b']);
+    });
+
     it('filters messages and updates before applying the notification limit', async () => {
       mockResolveNotificationIdentity.mockResolvedValue({ supabaseUserId: 'auth-id-123' });
       mockIsResolveIdentityError.mockReturnValue(false);

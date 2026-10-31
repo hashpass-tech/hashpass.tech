@@ -6,10 +6,15 @@ jest.mock('react-native', () => ({
 
 const mockGetItemAsync = jest.fn(async (_key: string) => null as string | null);
 const mockSetItemAsync = jest.fn(async (_key: string, _value: string) => undefined);
+const mockExpoGetRandomValues = jest.fn();
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: (key: string) => mockGetItemAsync(key),
   setItemAsync: (key: string, value: string) => mockSetItemAsync(key, value),
+}), { virtual: true });
+
+jest.mock('expo-crypto', () => ({
+  getRandomValues: (values: Uint8Array) => mockExpoGetRandomValues(values),
 }), { virtual: true });
 
 const mockRequest = jest.fn();
@@ -117,6 +122,24 @@ describe('chat-encryption', () => {
   });
 
   describe('ensureChatKeyPair', () => {
+    it('loads the expo crypto polyfill when native crypto lacks getRandomValues', async () => {
+      const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {} });
+      mockExpoGetRandomValues.mockImplementation((values: Uint8Array) => {
+        values.forEach((_value, index) => { values[index] = index + 1; });
+        return values;
+      });
+
+      try {
+        await expect(ensureChatKeyPair('user-without-crypto')).resolves.toBeInstanceOf(Uint8Array);
+        globalThis.crypto.getRandomValues(new Uint8Array(4));
+        expect(mockExpoGetRandomValues).toHaveBeenCalled();
+      } finally {
+        if (originalCrypto) Object.defineProperty(globalThis, 'crypto', originalCrypto);
+        else Reflect.deleteProperty(globalThis, 'crypto');
+      }
+    });
+
     it('loads an existing key without generating or publishing one', async () => {
       const existingPriv = x25519.utils.randomSecretKey();
       mockGetItemAsync.mockResolvedValue(bytesToHex(existingPriv));

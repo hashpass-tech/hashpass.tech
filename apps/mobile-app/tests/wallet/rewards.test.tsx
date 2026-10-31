@@ -2,6 +2,11 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Pressable } from 'react-native';
 
+jest.mock('react-native/Libraries/Utilities/Platform', () => ({
+  OS: 'web',
+  select: (options: Record<string, unknown>) => options.web ?? options.default,
+}));
+
 let mockUserId: string | null = 'user-a';
 const mockGetUserBalance = jest.fn();
 jest.mock('../../hooks/useAuth', () => ({ useAuth: () => ({
@@ -19,10 +24,16 @@ jest.mock('../../lib/lukas-reward-service', () => ({
 import Rewards from '../../components/BlockchainTokensView';
 
 let view: ReactTestRenderer;
+let balanceRefreshHandler: EventListener | undefined;
 const content = () => JSON.stringify(view.toJSON());
 afterEach(() => { if (view) act(() => view.unmount()); });
-beforeAll(() => { window.addEventListener = jest.fn(); window.removeEventListener = jest.fn(); });
-beforeEach(() => { mockUserId = 'user-a'; mockGetUserBalance.mockReset(); });
+beforeAll(() => {
+  window.addEventListener = jest.fn((type, listener) => {
+    if (type === 'balance:refresh') balanceRefreshHandler = listener as EventListener;
+  }) as unknown as typeof window.addEventListener;
+  window.removeEventListener = jest.fn() as unknown as typeof window.removeEventListener;
+});
+beforeEach(() => { mockUserId = 'user-a'; balanceRefreshHandler = undefined; mockGetUserBalance.mockReset(); });
 
 it('keeps provider errors unavailable and allows retry to an authoritative zero', async () => {
   mockGetUserBalance.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(0);
@@ -61,4 +72,20 @@ it('handles rejected requests without substituting zero', async () => {
   mockGetUserBalance.mockRejectedValue(new Error('offline'));
   await act(async () => { view = create(<Rewards />); });
   expect(content()).toContain('Unavailable');
+});
+
+it('uses valid dashboard balance events and refreshes from the API for invalid events', async () => {
+  let resolveRefresh!: (balance: number) => void;
+  mockGetUserBalance.mockResolvedValueOnce(5).mockReturnValueOnce(new Promise(resolve => {
+    resolveRefresh = resolve;
+  }));
+  await act(async () => { view = create(<Rewards />); });
+
+  act(() => balanceRefreshHandler?.(new CustomEvent('balance:refresh', { detail: { balance: 25 } })));
+  expect(content()).toContain('"25"');
+
+  act(() => balanceRefreshHandler?.(new CustomEvent('balance:refresh', { detail: { balance: 'invalid' } })));
+  expect(mockGetUserBalance).toHaveBeenCalledTimes(2);
+  await act(async () => { resolveRefresh(6); });
+  expect(content()).toContain('"6"');
 });

@@ -96,4 +96,22 @@ describe('LUKAS balance API', () => {
     expect(response.status).toBe(400);
     expect(mockFrom).not.toHaveBeenCalled();
   });
+
+  it('returns a server error for database failures and non-numeric balances', async () => {
+    mockResolveIdentity.mockResolvedValue({ supabaseUserId: '11111111-1111-4111-8111-111111111111' });
+    mockIsIdentityError.mockReturnValue(false);
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { GET } = require('../../app/api/lukas/balance+api');
+
+    queryResult = { data: { balance: 'not-a-number' }, error: null };
+    const invalidBalance = await GET(new Request('https://api.hashpass.tech/api/lukas/balance'));
+    expect(invalidBalance.status).toBe(500);
+
+    queryResult = { data: null, error: { message: 'database unavailable' } };
+    const databaseFailure = await GET(new Request('https://api.hashpass.tech/api/lukas/balance'));
+    expect(databaseFailure.status).toBe(500);
+    expect(await databaseFailure.json()).toEqual({ error: 'Unable to load rewards balance' });
+  });
 });
