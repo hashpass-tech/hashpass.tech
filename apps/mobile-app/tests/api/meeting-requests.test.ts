@@ -45,7 +45,7 @@ function createSpeakerChain(): {
     in: (...args: unknown[]) => mockSpeakerIn(...args),
     limit: (...args: unknown[]) => {
       mockEq(...args);
-      return mockMaybeSingle().then((result) => ({
+      return mockMaybeSingle().then((result: { data: unknown; error: unknown }) => ({
         ...result,
         data: Array.isArray(result.data) || result.data == null
           ? result.data
