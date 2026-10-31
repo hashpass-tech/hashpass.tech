@@ -22,7 +22,7 @@ export interface VersionHistory {
 // Current Version Configuration - Auto-synced with package.json
 export const CURRENT_VERSION: VersionInfo = {
   version: packageJson.version, // Single source of truth: package.json
-  buildNumber: 202610312058, // Updated to current timestamp
+  buildNumber: 202610312214, // Updated to current timestamp
   releaseDate: '2026-10-31',
   releaseType: 'stable',
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -30,14 +30,29 @@ export const CURRENT_VERSION: VersionInfo = {
     // No new features
   ],
   bugfixes: [
-    'route mobile data through authenticated APIs'
+    'preserve meeting chat profiles and keys'
   ],
   breakingChanges: [],
-  notes: 'route mobile data through authenticated APIs'
+  notes: 'preserve meeting chat profiles and keys'
 };
 
 // Version History
 export const VERSION_HISTORY: VersionHistory = {
+  '1.9.200': {
+    version: '1.9.200',
+    buildNumber: 202610312214,
+    releaseDate: '2026-10-31',
+    releaseType: 'stable',
+    environment: 'development',
+    features: [
+      // No new features
+    ],
+    bugfixes: [
+      'preserve meeting chat profiles and keys'
+    ],
+    breakingChanges: [],
+    notes: 'preserve meeting chat profiles and keys'
+  },
   '1.9.199': {
     version: '1.9.199',
     buildNumber: 202610312058,

@@ -114,16 +114,8 @@ export async function ensureChatKeyPair(userId: string): Promise<Uint8Array> {
 
   ensureCryptoPolyfill();
   const privateKey = x25519.utils.randomSecretKey();
-  const publicKey = x25519.getPublicKey(privateKey);
   await writePrivateKeyHex(userId, bytesToHex(privateKey));
-
-  const { data, error } = await requestChatKeys('POST', undefined, {
-    action: 'publish-public-key',
-    publicKey: bytesToHex(publicKey),
-  });
-  if (error || !data?.success) {
-    throw new Error(`Failed to publish chat public key: ${error?.message || data?.error || 'unknown error'}`);
-  }
+  await publishChatPublicKey(privateKey);
 
   return privateKey;
 }
@@ -142,6 +134,39 @@ export async function fetchParticipantPublicKey(userId: string): Promise<Uint8Ar
   const { data, error } = await requestChatKeys('GET', { kind: 'public-key', userId });
   if (error || !data?.success || !data?.public_key) return null;
   return hexToBytes(data.public_key);
+}
+
+/** Fetches the account's own published key, distinguishing an absent key from API failure. */
+export async function fetchOwnChatPublicKey(userId: string): Promise<Uint8Array | null> {
+  const { data, error } = await requestChatKeys('GET', { kind: 'public-key', userId });
+  if (error) throw new Error(`Failed to verify the account chat key: ${error.message}`);
+  if (data?.success && data.public_key) return hexToBytes(data.public_key);
+  if (data?.error === 'key_not_found') return null;
+  throw new Error('The account chat key could not be verified');
+}
+
+/** Publishes a known local private key without generating or rotating it. */
+export async function publishChatPublicKey(privateKey: Uint8Array): Promise<void> {
+  const publicKey = x25519.getPublicKey(privateKey);
+  const { data, error } = await requestChatKeys('POST', undefined, {
+    action: 'publish-public-key',
+    publicKey: bytesToHex(publicKey),
+  });
+  if (error || !data?.success) {
+    throw new Error(`Failed to publish chat public key: ${error?.message || data?.error || 'unknown error'}`);
+  }
+}
+
+/** Checks whether a device's saved private key matches the public key published for its account. */
+export function doesChatPrivateKeyMatchPublicKey(
+  privateKey: Uint8Array,
+  publicKey: Uint8Array,
+): boolean {
+  try {
+    return bytesToHex(x25519.getPublicKey(privateKey)) === bytesToHex(publicKey);
+  } catch {
+    return false;
+  }
 }
 
 // X25519 ECDH is symmetric -- getSharedSecret(myPriv, theirPub) ===
@@ -181,8 +206,9 @@ export function decryptChatMessage(
     const key = deriveConversationKey(myPrivateKey, theirPublicKey);
     const plaintextBytes = xchacha20poly1305(key, hexToBytes(payload.nonce)).decrypt(hexToBytes(payload.ciphertext));
     return bytesToUtf8(plaintextBytes);
-  } catch (error) {
-    console.error('[chat-encryption] Failed to decrypt message:', error);
+  } catch {
+    // The caller renders a per-message recovery state. Avoid logging every
+    // reconciliation retry (history is refreshed periodically in the chat).
     return null;
   }
 }
@@ -324,16 +350,12 @@ export async function restoreChatKeyPair(
   await writePrivateKeyHex(userId, bytesToHex(privateKey));
 
   // Re-publish the public key so other participants can find it
-  const publicKey = x25519.getPublicKey(privateKey);
-  const { error: publishError } = await requestChatKeys('POST', undefined, {
-    action: 'publish-public-key',
-    publicKey: bytesToHex(publicKey),
-  });
-
-  if (publishError) {
+  try {
+    await publishChatPublicKey(privateKey);
+  } catch (publishError) {
     console.error('[chat-encryption] Failed to re-publish public key after restore:', publishError);
     // Key is restored locally, but other participants won't see the public key
-    return { success: false, error: publishError.message };
+    return { success: false, error: publishError instanceof Error ? publishError.message : 'Unable to publish restored key' };
   }
 
   return { success: true };

@@ -6,6 +6,9 @@ import {
   ensureChatKeyPair,
   loadChatKeyPair,
   fetchParticipantPublicKey,
+  fetchOwnChatPublicKey,
+  publishChatPublicKey,
+  doesChatPrivateKeyMatchPublicKey,
   encryptChatMessage,
   decryptChatMessage,
   hasChatKeyBackup,
@@ -36,10 +39,8 @@ export interface ChatMessage {
   };
   createdAt: string;
   messageType?: 'text' | 'system' | 'meeting_update';
-  /** True when this row's ciphertext could not be decrypted with the keys
-   * currently available on this device (e.g. the sender rotated their key
-   * -- new device/reinstall -- after this message was sent). content is a
-   * user-facing placeholder in that case, not the real (unrecoverable) text. */
+  /** True when authentication failed while decrypting this row, usually
+   * because a key changed or the stored ciphertext/nonce was damaged. */
   decryptionFailed?: boolean;
 }
 
@@ -56,6 +57,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
   const [presence, setPresence] = useState<{ [userId: string]: { isOnline: boolean; lastSeen: Date } }>({});
   const [keysReady, setKeysReady] = useState(false);
   const [otherKeyMissing, setOtherKeyMissing] = useState(false);
+  const [keyMismatch, setKeyMismatch] = useState(false);
   // True when the device has no local private key but a server-side encrypted
   // backup exists -- the UI should prompt the user to enter their backup
   // password to restore chat history before proceeding.
@@ -107,10 +109,6 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
         privateKey = await loadChatKeyPair(userId);
       }
 
-      if (privateKey) {
-        myPrivateKeyRef.current = privateKey;
-      }
-
       if (!privateKey) {
         // Check for the backup before generating/publishing a replacement key.
         // The publish RPC deliberately clears old backups after key rotation.
@@ -123,8 +121,42 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
           setLoading(false);
           return;
         }
+
+        // A published key with no matching local private key means this
+        // account has already used chat on another device or lost local
+        // storage. Never overwrite that key automatically: doing so would
+        // make existing ciphertext impossible to recover on this device.
+        const publishedOwnKey = await fetchOwnChatPublicKey(userId);
+        if (publishedOwnKey) {
+          setKeyMismatch(true);
+          await loadOtherParticipantKey();
+          setKeysReady(true);
+          return;
+        }
+
         privateKey = await ensureChatKeyPair(userId);
-        myPrivateKeyRef.current = privateKey;
+      }
+      myPrivateKeyRef.current = privateKey;
+
+      const publishedOwnKey = await fetchOwnChatPublicKey(userId);
+      if (!publishedOwnKey) {
+        // The local key may predate server registration. Re-publish this same
+        // key so the peer can derive the existing conversation secret.
+        await publishChatPublicKey(privateKey);
+        setKeyMismatch(false);
+      } else if (!doesChatPrivateKeyMatchPublicKey(privateKey, publishedOwnKey)) {
+        setKeyMismatch(true);
+        const backup = await hasChatKeyBackup(userId);
+        if (backup.error) {
+          throw new Error(`Failed to check for chat key backup: ${backup.error}`);
+        }
+        if (backup.hasBackup) {
+          setNeedsKeyRestore(true);
+          setLoading(false);
+          return;
+        }
+      } else {
+        setKeyMismatch(false);
       }
 
       await loadOtherParticipantKey();
@@ -153,6 +185,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     myPrivateKeyRef.current = restoredKey;
     await loadOtherParticipantKey();
     setNeedsKeyRestore(false);
+    setKeyMismatch(false);
     setKeysReady(true);
 
     // Refresh messages so they can be decrypted with the restored key
@@ -164,6 +197,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
   // Skip restore and generate/publish a replacement key.
   // This means old messages will show as "[Unable to decrypt this message]".
   const skipKeyRestore = useCallback(() => {
+    if (keyMismatch) return;
     void (async () => {
       if (!userId) return;
       try {
@@ -177,7 +211,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
         setError(err instanceof Error ? err.message : 'Failed to set up secure chat');
       }
     })();
-  }, [userId, loadOtherParticipantKey]);
+  }, [userId, keyMismatch, loadOtherParticipantKey]);
 
   // Create a backup of the current private key, encrypted with the user's
   // password. Call this after successful setup if the user wants to enable
@@ -345,6 +379,9 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     async (content: string, messageType: 'text' | 'system' | 'meeting_update' = 'text') => {
       const priv = myPrivateKeyRef.current;
       const otherPub = otherPublicKeyRef.current;
+      if (keyMismatch) {
+        throw new Error('Restore the chat key backup before sending messages from this device');
+      }
       if (!priv) throw new Error('Chat keys are not ready yet');
       if (!otherPub) {
         // The other participant may have opened chat for the first time
@@ -403,7 +440,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
         },
       ]));
     },
-    [meetingId, userId, username, otherParticipantId]
+    [meetingId, userId, username, otherParticipantId, keyMismatch]
   );
 
   const clearMessages = useCallback(() => {
@@ -420,6 +457,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     error,
     keysReady,
     otherKeyMissing,
+    keyMismatch,
     needsKeyRestore,
     restoreKeyFromBackup,
     skipKeyRestore,

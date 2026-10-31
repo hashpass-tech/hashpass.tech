@@ -623,10 +623,24 @@ describe('encrypted meeting chat realtime contract', () => {
     expect(config.groups['meeting-chat-e2e']).toContain(
       'db/migrations/V066__restore_meeting_chat_messages_policies.sql',
     );
+    expect(config.groups['meeting-chat-e2e']).toContain(
+      'db/migrations/V160__preserve_meeting_chat_participant_profiles.sql',
+    );
     expect(migration).toMatch(/ALTER PUBLICATION supabase_realtime ADD TABLE public\.meeting_chat_messages/i);
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.get_meeting_chat_participant/i);
     expect(migration).toMatch(/profile\.avatar_url/i);
     expect(migration).toMatch(/speaker\.imageurl/i);
+  });
+
+  it('preserves speaker profile data when participant fallback queries find no user row', () => {
+    const migration = fs.readFileSync(
+      path.join(root, 'db/migrations/V160__preserve_meeting_chat_participant_profiles.sql'),
+      'utf8',
+    );
+
+    expect(migration.match(/IF FOUND THEN/gi)).toHaveLength(2);
+    expect(migration).toMatch(/IF FOUND THEN\s+v_name := COALESCE\(v_name, v_profile_name\)/i);
+    expect(migration).toMatch(/v_avatar_url := COALESCE\(v_avatar_url, v_profile_avatar_url\)/i);
   });
 
   it('ships chat policy repair through the default tenant migration command', () => {

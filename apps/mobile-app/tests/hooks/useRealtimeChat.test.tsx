@@ -41,6 +41,9 @@ jest.mock('@hashpass/utils', () => ({
 const mockEnsureChatKeyPair = jest.fn();
 const mockLoadChatKeyPair = jest.fn();
 const mockFetchParticipantPublicKey = jest.fn();
+const mockFetchOwnChatPublicKey = jest.fn();
+const mockPublishChatPublicKey = jest.fn();
+const mockDoesChatPrivateKeyMatchPublicKey = jest.fn();
 const mockEncryptChatMessage = jest.fn();
 const mockDecryptChatMessage = jest.fn();
 const mockHasChatKeyBackup = jest.fn();
@@ -51,6 +54,9 @@ jest.mock('../../lib/chat-encryption', () => ({
   ensureChatKeyPair: (...args: unknown[]) => mockEnsureChatKeyPair(...args),
   loadChatKeyPair: (...args: unknown[]) => mockLoadChatKeyPair(...args),
   fetchParticipantPublicKey: (...args: unknown[]) => mockFetchParticipantPublicKey(...args),
+  fetchOwnChatPublicKey: (...args: unknown[]) => mockFetchOwnChatPublicKey(...args),
+  publishChatPublicKey: (...args: unknown[]) => mockPublishChatPublicKey(...args),
+  doesChatPrivateKeyMatchPublicKey: (...args: unknown[]) => mockDoesChatPrivateKeyMatchPublicKey(...args),
   encryptChatMessage: (...args: unknown[]) => mockEncryptChatMessage(...args),
   decryptChatMessage: (...args: unknown[]) => mockDecryptChatMessage(...args),
   hasChatKeyBackup: (...args: unknown[]) => mockHasChatKeyBackup(...args),
@@ -146,6 +152,9 @@ describe('useRealtimeChat', () => {
     mockEnsureChatKeyPair.mockResolvedValue(myPriv);
     mockLoadChatKeyPair.mockResolvedValue(myPriv);
     mockFetchParticipantPublicKey.mockResolvedValue(theirPub);
+    mockFetchOwnChatPublicKey.mockResolvedValue(null);
+    mockPublishChatPublicKey.mockResolvedValue(undefined);
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(true);
     mockHasChatKeyBackup.mockResolvedValue({ hasBackup: false });
     mockRestoreChatKeyPair.mockResolvedValue({ success: true });
     mockBackupChatKeyPair.mockResolvedValue({ success: true });
@@ -229,6 +238,110 @@ describe('useRealtimeChat', () => {
       latest!.skipKeyRestore();
       await flushPromises();
     });
+    await act(async () => renderer.unmount());
+  });
+
+  it('detects a local key mismatch, requires backup restore, and blocks sending until restored', async () => {
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(false);
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockHasChatKeyBackup.mockResolvedValue({ hasBackup: true });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(mockFetchOwnChatPublicKey).toHaveBeenCalledWith('my-user-id');
+    expect(latest!.keyMismatch).toBe(true);
+    expect(latest!.needsKeyRestore).toBe(true);
+    expect(latest!.keysReady).toBe(false);
+    await expect(latest!.sendMessage('This must not be sent')).rejects.toThrow('Restore the chat key backup');
+
+    await act(async () => {
+      await expect(latest!.restoreKeyFromBackup('backup-password')).resolves.toEqual({ success: true });
+    });
+    expect(latest!.keyMismatch).toBe(false);
+    expect(latest!.needsKeyRestore).toBe(false);
+    expect(latest!.keysReady).toBe(true);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('keeps key setup blocked when checking a mismatched key backup fails', async () => {
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(false);
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockHasChatKeyBackup.mockResolvedValue({ hasBackup: false, error: 'backup service unavailable' });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(latest!.keyMismatch).toBe(true);
+    expect(latest!.keysReady).toBe(false);
+    expect(latest!.error).toBe('Failed to check for chat key backup: backup service unavailable');
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('accepts the local key when it matches the account public key', async () => {
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(true);
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(latest!.keyMismatch).toBe(false);
+    expect(latest!.keysReady).toBe(true);
+    expect(mockFetchParticipantPublicKey).toHaveBeenCalledWith('other-user');
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('keeps chat read-only when the device key is missing but the account already has a published key', async () => {
+    mockLoadChatKeyPair.mockResolvedValue(null);
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockRpc.mockImplementation((fn: string) => {
+      if (fn === 'get_meeting_chat_messages') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            messages: [
+              { id: 'locked-message', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:00:00Z' },
+            ],
+          },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: { success: true }, error: null });
+    });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(mockEnsureChatKeyPair).not.toHaveBeenCalled();
+    expect(latest!.keyMismatch).toBe(true);
+    expect(latest!.needsKeyRestore).toBe(false);
+    expect(latest!.keysReady).toBe(true);
+    expect(latest!.messages[0]).toEqual(expect.objectContaining({ decryptionFailed: true }));
+    await expect(latest!.sendMessage('Do not rotate keys silently')).rejects.toThrow('Restore the chat key backup');
+
     await act(async () => renderer.unmount());
   });
 
