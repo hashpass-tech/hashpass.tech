@@ -8,7 +8,9 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
+import { FilterChip } from '@hashpass/ui/primitives';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../../hooks/useTheme';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -22,7 +24,6 @@ import * as Haptics from 'expo-haptics';
 import { CopilotStep, walkthroughable } from '@lib/copilot-shim';
 import UnifiedSearchAndFilter from '../../../../components/UnifiedSearchAndFilter';
 import { useNotifications } from '@contexts/NotificationContext';
-import { lukasRewardService } from '../../../../lib/lukas-reward-service';
 import { useBalance } from '@contexts/BalanceContext';
 import { useTranslation } from '../../../../i18n/i18n';
 import { meetingTypeLabel } from '../../../../lib/meeting-rules';
@@ -50,6 +51,7 @@ const generateUserAvatarUrl = (name: string): string => {
 
 export default function MyRequestsView() {
   const { isDark, colors } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const { dbUserId } = useAuth();
   const { event } = useEvent();
   const params = useLocalSearchParams<{ eventSlug?: string | string[]; requestId?: string | string[] }>();
@@ -106,23 +108,6 @@ export default function MyRequestsView() {
   } | null>(null);
   const openedRequestId = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (dbUserId) {
-      loadMyRequests();
-    } else {
-      setLoading(false);
-    }
-
-    const timeout = setTimeout(() => {
-      if (loading && requests.length === 0) {
-        console.warn('⚠️ My requests loading timeout (requests still empty), setting loading to false');
-        setLoading(false);
-      }
-    }, 10000);
-
-    return () => clearTimeout(timeout);
-  }, [dbUserId]);
-
   // Deep links from the speaker card must use the route event (not a stale
   // event context) and open the matching request once its event-scoped list
   // finishes loading.
@@ -147,7 +132,11 @@ export default function MyRequestsView() {
     try {
       setLoading(true);
 
-      const response = await apiClient.request(meetingRequestsPath, { skipEventSegment: true });
+      const response = await apiClient.request(meetingRequestsPath, {
+        skipEventSegment: true,
+        timeout: 15000,
+        retries: 0,
+      });
       if (!response.success) throw new Error(response.error);
       const meetingRequests = (response.data as any)?.data || [];
       setRequests(meetingRequests.map((request: any) => ({
@@ -163,6 +152,14 @@ export default function MyRequestsView() {
       setLoading(false);
     }
   }, [dbUserId, showError, meetingRequestsPath]);
+
+  useEffect(() => {
+    if (dbUserId) {
+      void loadMyRequests();
+    } else {
+      setLoading(false);
+    }
+  }, [dbUserId, loadMyRequests]);
 
   // The API owns event isolation and provider access. Refresh through that
   // boundary rather than opening a client Supabase channel for this screen.
@@ -430,10 +427,6 @@ export default function MyRequestsView() {
               await new Promise(resolve => setTimeout(resolve, delay));
               await refreshBalance();
 
-              // Also trigger the event directly for immediate UI update
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new Event('balance:refresh'));
-              }
             } catch (error) {
               console.error(`Error refreshing LUKAS balance (attempt ${i + 1}):`, error);
             }
@@ -1438,48 +1431,23 @@ export default function MyRequestsView() {
               >
                 {slotsByDay.map((day, dayIndex) => {
                   const isSelectedDay = day.dayKey === selectedSlotDay;
+                  const dayLabel = day.date.toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  });
                   return (
-                    <TouchableOpacity
+                    <FilterChip
                       key={day.dayKey}
                       testID={`slotPickerDayTab-${dayIndex}`}
-                      style={[
-                        styles.slotPickerDayTab,
-                        {
-                          backgroundColor: isSelectedDay
-                            ? (colors.primary || '#007AFF')
-                            : (colors.background?.default || (isDark ? '#2a2a2a' : '#f8f8f8')),
-                          borderColor: isSelectedDay
-                            ? (colors.primary || '#007AFF')
-                            : (colors.divider || (isDark ? '#404040' : '#e5e5e5')),
-                        }
-                      ]}
+                      mode={isDark ? 'dark' : 'light'}
+                      label={`${dayLabel} · ${day.slots.length}`}
+                      labelNumberOfLines={1}
+                      accessibilityLabel={`${dayLabel}, ${day.slots.length}`}
+                      selected={isSelectedDay}
+                      style={styles.slotPickerDayTab}
                       onPress={() => setSelectedSlotDay(day.dayKey)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[
-                        styles.slotPickerDayTabName,
-                        { color: isSelectedDay ? '#FFFFFF' : (colors.text?.secondary || (isDark ? '#B0B0B0' : '#666666')) }
-                      ]}>
-                        {day.date.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </Text>
-                      <Text style={[
-                        styles.slotPickerDayTabNumber,
-                        { color: isSelectedDay ? '#FFFFFF' : (colors.text?.primary || (isDark ? '#FFFFFF' : '#000000')) }
-                      ]}>
-                        {day.date.getDate()}
-                      </Text>
-                      <View style={[
-                        styles.slotPickerDayTabBadge,
-                        { backgroundColor: isSelectedDay ? 'rgba(255, 255, 255, 0.3)' : (colors.primary || '#007AFF') + '20' }
-                      ]}>
-                        <Text style={[
-                          styles.slotPickerDayTabBadgeText,
-                          { color: isSelectedDay ? '#FFFFFF' : (colors.primary || '#007AFF') }
-                        ]}>
-                          {day.slots.length}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
+                    />
                   );
                 })}
               </ScrollView>
@@ -1558,144 +1526,134 @@ export default function MyRequestsView() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView 
-                style={styles.slotPickerList}
-                showsVerticalScrollIndicator={true}
-                contentContainerStyle={styles.slotPickerListContent}
-              >
-                {selectedDaySlots.map((slot, index) => {
-                  const slotDate = new Date(slot.slot_time);
-                  const isSelected = selectedSlot === slot.slot_time;
-                  const isInterested = slot.slot_status === 'interested';
-                  const formattedDate = slotDate.toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric'
-                  });
-                  const formattedTime = slotDate.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  });
+              <>
+                {slotsByDay.length === 1 && slotsByDay[0] && (
+                  <Text
+                    accessibilityRole="header"
+                    style={[
+                      styles.slotPickerSingleDayHeading,
+                      { color: colors.text?.primary || (isDark ? '#FFFFFF' : '#000000') },
+                    ]}
+                  >
+                    {slotsByDay[0].date.toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                )}
+                <ScrollView
+                  style={[
+                    styles.slotPickerList,
+                    { maxHeight: Math.max(160, Math.min(380, windowHeight * 0.38)) },
+                  ]}
+                  showsVerticalScrollIndicator={true}
+                  contentContainerStyle={styles.slotPickerListContent}
+                >
+                  {selectedDaySlots.map((slot, index) => {
+                    const slotDate = new Date(slot.slot_time);
+                    const isSelected = selectedSlot === slot.slot_time;
+                    const isInterested = slot.slot_status === 'interested';
+                    const formattedTime = slotDate.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    });
 
-                  // Pink color for interested slots
-                  const interestedPink = '#E91E63';
-                  const interestedPinkLight = '#E91E6315';
+                    // Pink color for interested slots
+                    const interestedPink = '#E91E63';
+                    const interestedPinkLight = '#E91E6315';
 
-                  return (
-                    <TouchableOpacity
-                      key={slot.slot_time || index}
-                      style={[
-                        styles.slotPickerItem,
-                        isSelected && styles.slotPickerItemSelected,
-                        isInterested && styles.slotPickerItemInterested,
-                        {
-                          backgroundColor: isSelected && isInterested
-                            ? interestedPinkLight // Keep interested background when selected
-                            : isSelected 
-                            ? (colors.success?.main || '#4CAF50') + '15'
-                            : isInterested
-                            ? interestedPinkLight
-                            : (colors.background?.default || (isDark ? '#2a2a2a' : '#f8f8f8')),
-                          borderColor: isSelected && isInterested
-                            ? interestedPink // Keep interested border when selected
-                            : isSelected 
-                            ? (colors.success?.main || '#4CAF50')
-                            : isInterested
-                            ? interestedPink
-                            : (colors.divider || (isDark ? '#404040' : '#e5e5e5')),
-                          borderWidth: isInterested ? 2 : (isSelected ? 2 : 1),
-                          // Make interested slots bigger
-                          marginBottom: isInterested ? 16 : 12,
-                          transform: isInterested ? [{ scale: 1.05 }] : [],
-                        }
-                      ]}
-                      onPress={() => setSelectedSlot(slot.slot_time)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[
-                        styles.slotPickerItemContent,
-                        isInterested && { 
-                          padding: 20,
-                          paddingRight: 60 // Add extra padding for priority icon
-                        }
-                      ]}>
-                        {/* Priority Heart Icon for Interested Slots */}
-                        {isInterested && (
-                          <View style={[
-                            styles.slotPickerPriorityIcon,
-                            { backgroundColor: interestedPink }
-                          ]}>
-                            <MaterialIcons name="favorite" size={24} color="white" />
-                          </View>
-                        )}
-                        <View style={styles.slotPickerItemLeft}>
-                          <View style={[
-                            styles.slotPickerTimeBadge,
-                            isSelected && isInterested && {
-                              backgroundColor: interestedPink, // Keep interested color when selected
-                            },
-                            isSelected && !isInterested && {
-                              backgroundColor: colors.success?.main || '#4CAF50',
-                            },
-                            isInterested && !isSelected && {
-                              backgroundColor: interestedPink,
-                            }
-                          ]}>
-                            <MaterialIcons 
-                              name={isInterested ? "favorite" : "access-time"} 
-                              size={16} 
-                              color={(isSelected || isInterested) ? 'white' : (colors.text?.secondary || '#666666')} 
-                            />
-                            <Text style={[
-                              styles.slotPickerTimeText,
-                              (isSelected || isInterested) && styles.slotPickerTimeTextSelected
+                    return (
+                      <TouchableOpacity
+                        key={slot.slot_time || index}
+                        style={[
+                          styles.slotPickerItem,
+                          isSelected && styles.slotPickerItemSelected,
+                          isInterested && styles.slotPickerItemInterested,
+                          {
+                            backgroundColor: isSelected && isInterested
+                              ? interestedPinkLight // Keep interested background when selected
+                              : isSelected
+                              ? (colors.success?.main || '#4CAF50') + '15'
+                              : isInterested
+                              ? interestedPinkLight
+                              : (colors.background?.default || (isDark ? '#2a2a2a' : '#f8f8f8')),
+                            borderColor: isSelected && isInterested
+                              ? interestedPink // Keep interested border when selected
+                              : isSelected
+                              ? (colors.success?.main || '#4CAF50')
+                              : isInterested
+                              ? interestedPink
+                              : (colors.divider || (isDark ? '#404040' : '#e5e5e5')),
+                            borderWidth: isInterested ? 2 : (isSelected ? 2 : 1),
+                          }
+                        ]}
+                        onPress={() => setSelectedSlot(slot.slot_time)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.slotPickerItemContent}>
+                          <View style={styles.slotPickerItemLeft}>
+                            <View style={[
+                              styles.slotPickerTimeBadge,
+                              isSelected && isInterested && {
+                                backgroundColor: interestedPink, // Keep interested color when selected
+                              },
+                              isSelected && !isInterested && {
+                                backgroundColor: colors.success?.main || '#4CAF50',
+                              },
+                              isInterested && !isSelected && {
+                                backgroundColor: interestedPink,
+                              }
                             ]}>
-                              {formattedTime}
-                            </Text>
-                          </View>
-                          <View style={styles.slotPickerItemInfo}>
-                            <View style={styles.slotPickerItemInfoRow}>
+                              <MaterialIcons
+                                name={isInterested ? "favorite" : "access-time"}
+                                size={16}
+                                color={(isSelected || isInterested) ? 'white' : (colors.text?.secondary || '#666666')}
+                              />
                               <Text style={[
-                                styles.slotPickerDateText,
-                                isSelected && !isInterested && { color: colors.success?.main || '#4CAF50' },
-                                isInterested && { color: interestedPink } // Always show interested color
+                                styles.slotPickerTimeText,
+                                (isSelected || isInterested) && styles.slotPickerTimeTextSelected
                               ]}>
-                                {formattedDate}
+                                {formattedTime}
                               </Text>
-                              {isInterested && (
-                                <View style={[
-                                  styles.slotPickerInterestedBadge,
-                                  { backgroundColor: interestedPink }
-                                ]}>
-                                  <MaterialIcons name="favorite" size={12} color="white" />
-                                  <Text style={styles.slotPickerInterestedBadgeText}>
-                                    {t('requestView.slotPicker.interested')}
-                                  </Text>
-                                </View>
-                              )}
                             </View>
-                            <Text style={[
-                              styles.slotPickerDurationText,
-                              { color: colors.text?.secondary || (isDark ? '#B0B0B0' : '#666666') }
+                            <View style={styles.slotPickerItemInfo}>
+                              <View style={styles.slotPickerItemInfoRow}>
+                                <Text style={[
+                                  styles.slotPickerDurationText,
+                                  { color: colors.text?.secondary || (isDark ? '#B0B0B0' : '#666666') }
+                                ]}>
+                                  {slot.duration_minutes || 15} {t('requestView.minutesLabel')}
+                                </Text>
+                                {isInterested && (
+                                  <View style={[
+                                    styles.slotPickerInterestedBadge,
+                                    { backgroundColor: interestedPink }
+                                  ]}>
+                                    <MaterialIcons name="favorite" size={12} color="white" />
+                                    <Text style={styles.slotPickerInterestedBadgeText}>
+                                      {t('requestView.slotPicker.interested')}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          </View>
+                          {isSelected && (
+                            <View style={[
+                              styles.slotPickerCheckContainer,
+                              { backgroundColor: isInterested ? interestedPink : (colors.success?.main || '#4CAF50') }
                             ]}>
-                              {slot.duration_minutes || 15} {t('requestView.minutesLabel')}
-                            </Text>
-                          </View>
+                              <MaterialIcons name="check" size={20} color="white" />
+                            </View>
+                          )}
                         </View>
-                        {isSelected && (
-                          <View style={[
-                            styles.slotPickerCheckContainer,
-                            { backgroundColor: isInterested ? interestedPink : (colors.success?.main || '#4CAF50') }
-                          ]}>
-                            <MaterialIcons name="check" size={20} color="white" />
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
             )}
 
             {selectedSlot && (
@@ -3023,12 +2981,12 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   // Slot Picker Modal Styles
   slotPickerModalContent: {
-    width: '90%',
-    maxWidth: 500,
-    maxHeight: '85%',
+    width: '92%',
+    maxWidth: 520,
+    maxHeight: '90%',
     borderRadius: 24,
     borderWidth: 1,
-    padding: 24,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -3049,7 +3007,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   slotPickerHeader: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 18,
     marginTop: 8,
   },
   slotPickerIconContainer: {
@@ -3072,42 +3030,22 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     lineHeight: 20,
   },
   slotPickerDayTabs: {
-    marginHorizontal: -24,
-    marginBottom: 16,
+    marginHorizontal: -20,
+    marginBottom: 12,
   },
   slotPickerDayTabsContent: {
-    paddingHorizontal: 24,
-    gap: 10,
+    paddingHorizontal: 20,
+    gap: 8,
   },
   slotPickerDayTab: {
-    width: 60,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexShrink: 0,
+    maxWidth: 210,
+    minHeight: 44,
   },
-  slotPickerDayTabName: {
-    fontSize: 12,
+  slotPickerSingleDayHeading: {
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 2,
-  },
-  slotPickerDayTabNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  slotPickerDayTabBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  slotPickerDayTabBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    marginBottom: 10,
   },
   slotPickerLoadingContainer: {
     padding: 60,
@@ -3174,16 +3112,16 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     textDecorationLine: 'underline',
   },
   slotPickerList: {
-    maxHeight: 400,
-    marginHorizontal: -24,
-    paddingHorizontal: 24,
+    flexShrink: 1,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
   },
   slotPickerListContent: {
     paddingBottom: 16,
   },
   slotPickerItem: {
-    borderRadius: 16,
-    borderWidth: 2,
+    borderRadius: 14,
+    borderWidth: 1,
     marginBottom: 12,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -3204,46 +3142,32 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  slotPickerPriorityIcon: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#E91E63',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10,
-  },
   slotPickerItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    position: 'relative',
+    gap: 10,
+    padding: 12,
   },
   slotPickerItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 16,
+    minWidth: 0,
+    gap: 10,
   },
   slotPickerTimeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 12,
+    flexShrink: 0,
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
   },
   slotPickerTimeText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: colors.text?.primary || (isDark ? '#FFFFFF' : '#000000'),
   },
@@ -3252,12 +3176,13 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   slotPickerItemInfo: {
     flex: 1,
+    minWidth: 0,
   },
   slotPickerItemInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   slotPickerInterestedBadge: {
     flexDirection: 'row',
@@ -3272,12 +3197,6 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.3,
-  },
-  slotPickerDateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text?.primary || (isDark ? '#FFFFFF' : '#000000'),
-    marginBottom: 4,
   },
   slotPickerDurationText: {
     fontSize: 13,

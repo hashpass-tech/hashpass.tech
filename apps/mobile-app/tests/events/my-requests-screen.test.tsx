@@ -227,6 +227,8 @@ describe('MyRequestsView', () => {
 
     expect(mockApiRequest).toHaveBeenCalledWith('events/event-2026/meetings/requests', {
       skipEventSegment: true,
+      timeout: 15000,
+      retries: 0,
     });
     expect(renderer.root.findAllByProps({ children: 'Sofía Speaker' }).length).toBeGreaterThan(0);
     expect(renderer.root.findAllByProps({ children: 'ACCEPTED' }).length).toBeGreaterThan(0);
@@ -249,6 +251,8 @@ describe('MyRequestsView', () => {
 
     expect(mockApiRequest).toHaveBeenCalledWith('events/chile2026/meetings/requests', {
       skipEventSegment: true,
+      timeout: 15000,
+      retries: 0,
     });
     expect(
       renderer.root.findAllByType('Modal' as any).some((modal: any) => modal.props.visible),
@@ -503,16 +507,21 @@ describe('MyRequestsView', () => {
     // The first (earliest) day tab is selected by default, so only its two
     // slots should be rendered.
     expect(renderer.root.findAllByProps({ name: 'access-time' }).length).toBe(2);
+    const firstDayTab = renderer.root.findByProps({ testID: 'slotPickerDayTab-0' });
+    expect(firstDayTab.props.label).toContain('· 2');
+    expect(firstDayTab.props.selected).toBe(true);
 
     // Press the second day tab and confirm the list now shows only that
     // day's single slot.
     const secondDayTab = renderer.root.findByProps({ testID: 'slotPickerDayTab-1' });
+    expect(secondDayTab.props.selected).toBe(false);
     await act(async () => {
       secondDayTab.props.onPress();
       await flushPromises();
     });
 
     expect(renderer.root.findAllByProps({ name: 'access-time' }).length).toBe(1);
+    expect(renderer.root.findByProps({ testID: 'slotPickerDayTab-1' }).props.selected).toBe(true);
 
     await act(async () => renderer.unmount());
   });

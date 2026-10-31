@@ -9,8 +9,6 @@ import UnifiedSearchAndFilter from '../../../components/UnifiedSearchAndFilter';
 import { uiTokens } from '@hashpass/ui/tokens';
 import { SegmentedTabs } from '@hashpass/ui/primitives';
 import { useDashboardPageLayout } from '../../../hooks/useDashboardPageLayout';
-import { supabase } from '../../../lib/supabase';
-import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../i18n/i18n';
 import { translateNotification } from '../../../lib/notification-translations';
 import { buildNotificationEventPath } from '../../../lib/notification-navigation';
@@ -25,7 +23,6 @@ export default function NotificationsScreen() {
   const { isDark, colors } = useTheme();
   const { topInset, bottomInset, column } = useDashboardPageLayout();
   const { notifications, unreadCount, isLoading, markAsRead, markAsUnread, markAllAsRead, archiveNotification, deleteNotification, refreshNotifications } = useNotifications();
-  const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const { t } = useTranslation('notifications');
@@ -138,63 +135,17 @@ export default function NotificationsScreen() {
         }
       });
     } else if (notification.meeting_request_id) {
-      try {
-        // Fetch meeting request details to get all necessary data
-        const { data: meetingRequest, error } = await supabase
-          .from('meeting_requests')
-          .select(`
-            id,
-            event_id,
-            speaker_id,
-            speaker_name,
-            requester_id,
-            requester_name,
-            requester_company,
-            status,
-            message,
-            meeting_scheduled_at,
-            meeting_location,
-            duration_minutes,
-            note
-          `)
-          .eq('id', notification.meeting_request_id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching meeting request:', error);
-          // Fallback: navigate to my-requests page
-          router.push(buildNotificationEventPath(notification, null, 'networking/my-requests') as any);
-          return;
-        }
-
-        if (meetingRequest) {
-          // Fetch speaker details for image and company
-          // Note: speaker_id in meeting_requests is UUID (user_id from bsl_speakers)
-          const { data: speaker } = await supabase
-            .from('bsl_speakers')
-            .select('imageurl, company, id, user_id')
-            .eq('user_id', (meetingRequest as any).speaker_id)
-            .single();
-
-          // Navigate to meeting detail page with all necessary params
-          // Navigate to my-requests page instead of meeting-detail
-          // This allows users to see the request in context and take actions
-          router.push({
-            pathname: buildNotificationEventPath(notification, meetingRequest, 'networking/my-requests') as any,
-            params: {
-              requestId: (meetingRequest as any).id,
-              highlightRequest: 'true'
-            }
-          });
-        } else {
-          // Fallback: navigate to my-requests page
-          router.push(buildNotificationEventPath(notification, null, 'networking/my-requests') as any);
-        }
-      } catch (error) {
-        console.error('Error navigating to meeting detail:', error);
-        // Fallback: navigate to my-requests page
-        router.push(buildNotificationEventPath(notification, null, 'networking/my-requests') as any);
-      }
+      // The destination loads the request through its authenticated event API.
+      // Avoid fetching the request and speaker from Supabase in the browser:
+      // the speaker lookup was unused, and `.single()` returned 406 when no
+      // event-scoped speaker profile existed.
+      router.push({
+        pathname: buildNotificationEventPath(notification, null, 'networking/my-requests') as any,
+        params: {
+          requestId: notification.meeting_request_id,
+          highlightRequest: 'true',
+        },
+      });
     } else if (notification.speaker_id) {
       // Navigate to speaker details
       router.push(buildNotificationEventPath(notification, null, `speakers/${notification.speaker_id}`) as any);
