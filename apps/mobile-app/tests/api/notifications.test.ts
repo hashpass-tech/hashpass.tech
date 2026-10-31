@@ -71,6 +71,44 @@ describe('notifications api', () => {
       expect(filterByUser).toHaveBeenCalledWith('user_id', 'auth-id-123');
     });
 
+    it('enriches notifications with the event IDs of their linked meeting requests', async () => {
+      mockResolveNotificationIdentity.mockResolvedValue({ supabaseUserId: 'auth-id-123' });
+      mockIsResolveIdentityError.mockReturnValue(false);
+      const notificationRows = [
+        { id: 'notification-a', meeting_request_id: 'request-a' },
+        { id: 'notification-b', meeting_request_id: 'request-b' },
+      ];
+      const limit = jest.fn().mockResolvedValue({ data: notificationRows, error: null });
+      const order = jest.fn().mockReturnValue({ limit });
+      const filterByUser = jest.fn().mockReturnValue({ order });
+      const requestIds = jest.fn().mockResolvedValue({
+        data: [
+          { id: 'request-a', event_id: 'event-a' },
+          { id: 'request-b', event_id: 'event-b' },
+        ],
+        error: null,
+      });
+      mockFrom.mockImplementation((table: string) => table === 'notifications'
+        ? { select: () => ({ eq: filterByUser }) }
+        : { select: () => ({ in: requestIds }) });
+
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { GET } = require('../../app/api/notifications+api');
+      const response = await GET(new Request('https://api.hashpass.tech/api/notifications'));
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        data: [
+          { ...notificationRows[0], meeting_request_event_id: 'event-a' },
+          { ...notificationRows[1], meeting_request_event_id: 'event-b' },
+        ],
+        resolvedUserId: 'auth-id-123',
+      });
+      expect(mockFrom).toHaveBeenNthCalledWith(1, 'notifications');
+      expect(mockFrom).toHaveBeenNthCalledWith(2, 'meeting_requests');
+      expect(requestIds).toHaveBeenCalledWith('id', ['request-a', 'request-b']);
+    });
+
     it('filters messages and updates before applying the notification limit', async () => {
       mockResolveNotificationIdentity.mockResolvedValue({ supabaseUserId: 'auth-id-123' });
       mockIsResolveIdentityError.mockReturnValue(false);

@@ -140,7 +140,13 @@ export default function NotificationsScreen() {
       // the speaker lookup was unused, and `.single()` returned 406 when no
       // event-scoped speaker profile existed.
       router.push({
-        pathname: buildNotificationEventPath(notification, null, 'networking/my-requests') as any,
+        pathname: buildNotificationEventPath(
+          notification,
+          notification.meeting_request_event_id
+            ? { event_id: notification.meeting_request_event_id }
+            : null,
+          'networking/my-requests',
+        ) as any,
         params: {
           requestId: notification.meeting_request_id,
           highlightRequest: 'true',
