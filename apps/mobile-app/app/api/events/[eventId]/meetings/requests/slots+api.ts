@@ -14,17 +14,19 @@ async function resolveSpeakerUserId(supabase: any, speakerId: string) {
     .from("bsl_speakers")
     .select("user_id")
     .eq("id", speakerId)
-    .maybeSingle();
+    .limit(1);
   if (byIdError) throw byIdError;
-  if (byId?.user_id) return byId.user_id as string;
+  const speakerById = byId?.[0] ?? null;
+  if (speakerById?.user_id) return speakerById.user_id as string;
 
   const { data: byUserId, error: byUserIdError } = await supabase
     .from("bsl_speakers")
     .select("user_id")
     .eq("user_id", speakerId)
-    .maybeSingle();
+    .limit(1);
   if (byUserIdError) throw byUserIdError;
-  return (byUserId?.user_id as string | undefined) ?? null;
+  const speakerByUserId = byUserId?.[0] ?? null;
+  return (speakerByUserId?.user_id as string | undefined) ?? null;
 }
 
 // Returns conflict-safe speaker slots plus demand metadata. A slot with three

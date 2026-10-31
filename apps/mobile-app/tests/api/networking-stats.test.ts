@@ -6,7 +6,7 @@ const mockRpc = jest.fn();
 const mockFrom = jest.fn();
 
 type QueryResult = { data: unknown; error: unknown };
-type QueryCall = { table: string; filters: Array<[string, unknown]> };
+type QueryCall = { table: string; filters: [string, unknown][] };
 
 let results: Record<string, QueryResult>;
 let queryCalls: QueryCall[];
@@ -21,6 +21,7 @@ function createQuery(table: string): Record<string, unknown> {
       call.filters.push([column, value]);
       return query;
     }),
+    limit: jest.fn(async () => results[table]),
     maybeSingle: jest.fn(async () => results[table]),
     then: (onFulfilled: (value: QueryResult) => unknown) =>
       Promise.resolve(results[table]).then(onFulfilled),
@@ -49,7 +50,10 @@ describe("event networking stats api", () => {
     mockFrom.mockReset();
     queryCalls = [];
     results = {
-      bsl_speakers: { data: { id: "speaker-record-1" }, error: null },
+      // Supabase returns an array when the production query uses limit(1).
+      // Keep this fixture array-shaped so duplicate speaker profiles cannot
+      // regress into a PostgREST 406 via maybeSingle().
+      bsl_speakers: { data: [{ id: "speaker-record-1" }], error: null },
       user_blocks: { data: [{ id: "block-1" }, { id: "block-2" }], error: null },
       meeting_requests: { data: [{ id: "request-1" }], error: null },
     };
@@ -157,7 +161,7 @@ describe("event networking stats api", () => {
     mockResolveIdentity.mockResolvedValue({ supabaseUserId: "attendee-1" });
     mockIsIdentityError.mockReturnValue(false);
     mockRpc.mockResolvedValue({ data: { remaining_requests: 1 }, error: null });
-    results.bsl_speakers = { data: null, error: null };
+    results.bsl_speakers = { data: [], error: null };
 
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { GET } = require("../../app/api/events/[eventId]/networking/stats+api");

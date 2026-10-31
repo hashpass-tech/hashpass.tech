@@ -34,6 +34,7 @@ const mockFrom = jest.fn((table: string) => table === "bsl_speakers"
 function createSpeakerChain(): {
   eq: (...args: unknown[]) => unknown;
   in: (...args: unknown[]) => unknown;
+  limit: (...args: unknown[]) => unknown;
   maybeSingle: jest.Mock;
 } {
   return {
@@ -42,6 +43,15 @@ function createSpeakerChain(): {
       return createSpeakerChain();
     },
     in: (...args: unknown[]) => mockSpeakerIn(...args),
+    limit: (...args: unknown[]) => {
+      mockEq(...args);
+      return mockMaybeSingle().then((result: { data: unknown; error: unknown }) => ({
+        ...result,
+        data: Array.isArray(result.data) || result.data == null
+          ? result.data
+          : [result.data],
+      }));
+    },
     maybeSingle: mockMaybeSingle,
   };
 }
@@ -162,6 +172,29 @@ describe("meeting-requests api", () => {
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ data: [] });
+    });
+
+    it("returns sent requests when an authenticated user has no speaker row", async () => {
+      mockResolveNotificationIdentity.mockResolvedValue({
+        supabaseUserId: "auth-uuid-123",
+      });
+      mockIsResolveIdentityError.mockReturnValue(false);
+      mockMaybeSingle.mockResolvedValueOnce({ data: [], error: null });
+      mockOrder.mockResolvedValueOnce({
+        data: [{ id: "sent-request", requester_id: "auth-uuid-123" }],
+        error: null,
+      });
+
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { GET } = require("../../app/api/events/[eventId]/meetings/requests+api");
+      const response = await GET(
+        new Request("https://api.hashpass.tech/api/events/bsl/meetings/requests"),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        data: [{ id: "sent-request", requester_id: "auth-uuid-123", _direction: "sent" }],
+      });
     });
 
     it("combines sent and incoming requests with their direction", async () => {
@@ -428,6 +461,25 @@ describe("meeting-requests api", () => {
         "550e8400-e29b-41d4-a716-446655440000",
         "speaker-user-id",
       ]);
+    });
+
+    it("returns an empty list when the requested speaker profile is missing", async () => {
+      mockResolveNotificationIdentity.mockResolvedValue({
+        supabaseUserId: "auth-uuid-123",
+      });
+      mockIsResolveIdentityError.mockReturnValue(false);
+      mockMaybeSingle.mockResolvedValueOnce({ data: [], error: null });
+
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { GET } = require("../../app/api/events/[eventId]/meetings/requests+api");
+      const response = await GET(
+        new Request(
+          "https://api.hashpass.tech/api/events/bsl/meetings/requests?speakerId=550e8400-e29b-41d4-a716-446655440000",
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ data: [] });
     });
 
     it("returns identity error if identity resolution fails", async () => {

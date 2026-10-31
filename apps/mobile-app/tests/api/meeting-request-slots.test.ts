@@ -9,10 +9,14 @@ let mockPendingResult: { data: unknown[] | null; error: unknown } = {
   data: [],
   error: null,
 };
-let mockSpeakerResult: { data: { user_id: string } | null; error: unknown } = {
-  data: { user_id: "speaker-user-id" },
+let mockSpeakerResult: { data: { user_id: string }[] | null; error: unknown } = {
+  data: [{ user_id: "speaker-user-id" }],
   error: null,
 };
+let mockSpeakerResultQueue: {
+  data: { user_id: string }[] | null;
+  error: unknown;
+}[] = [];
 let consoleErrorSpy: jest.SpyInstance;
 
 function mockCreatePendingQuery(): {
@@ -33,7 +37,12 @@ function mockCreateSpeakerQuery() {
   return {
     eq: (...args: unknown[]) => {
       mockEq(...args);
-      return { maybeSingle: jest.fn().mockResolvedValue(mockSpeakerResult) };
+      return {
+        limit: jest.fn().mockImplementation(() =>
+          Promise.resolve(mockSpeakerResultQueue.shift() ?? mockSpeakerResult),
+        ),
+        maybeSingle: jest.fn().mockResolvedValue(mockSpeakerResult),
+      };
     },
   };
 }
@@ -66,7 +75,8 @@ describe("meeting-request slots api", () => {
     mockEq.mockReset();
     mockFrom.mockClear();
     mockPendingResult = { data: [], error: null };
-    mockSpeakerResult = { data: { user_id: "speaker-user-id" }, error: null };
+    mockSpeakerResult = { data: [{ user_id: "speaker-user-id" }], error: null };
+    mockSpeakerResultQueue = [];
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
@@ -130,6 +140,53 @@ describe("meeting-request slots api", () => {
 
     expect(response.status).toBe(200);
     expect(mockEq).toHaveBeenCalledWith("event_id", "chile2026");
+  });
+
+  it("resolves a speaker by auth user id when no profile id matches", async () => {
+    mockResolveNotificationIdentity.mockResolvedValue({
+      supabaseUserId: "requester-id",
+    });
+    mockIsResolveIdentityError.mockReturnValue(false);
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockSpeakerResultQueue = [
+      { data: [], error: null },
+      { data: [{ user_id: "speaker-user-id" }], error: null },
+    ];
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { GET } = require("../../app/api/events/[eventId]/meetings/requests/slots+api");
+    const response = await GET(
+      new Request(
+        "https://api.hashpass.tech/api/events/bsl/meetings/requests/slots?speakerId=speaker-user-id",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockEq).toHaveBeenCalledWith("id", "speaker-user-id");
+    expect(mockEq).toHaveBeenCalledWith("user_id", "speaker-user-id");
+  });
+
+  it("returns not found when neither speaker lookup has a profile", async () => {
+    mockResolveNotificationIdentity.mockResolvedValue({
+      supabaseUserId: "requester-id",
+    });
+    mockIsResolveIdentityError.mockReturnValue(false);
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    mockSpeakerResultQueue = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { GET } = require("../../app/api/events/[eventId]/meetings/requests/slots+api");
+    const response = await GET(
+      new Request(
+        "https://api.hashpass.tech/api/events/bsl/meetings/requests/slots?speakerId=missing-speaker",
+      ),
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Speaker not found" });
   });
 
   it("rejects identity errors, unlinked accounts, and missing speakers", async () => {
