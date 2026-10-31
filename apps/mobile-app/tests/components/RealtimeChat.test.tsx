@@ -159,6 +159,7 @@ function renderChat(
         roomName="room-1"
         username="Viewer"
         meetingId="meeting-1"
+        otherParticipantId="peer-1"
         otherParticipantName="Speaker"
         {...avatars}
       />,
@@ -251,6 +252,24 @@ it("uses the supplied profile photos for both participants and groups incoming s
   expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/current.png")).toBe(true);
   expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/speaker.png")).toBe(true);
   expect(view.root.findAllByType("Text" as any).filter((node) => node.props.children === "Speaker")).toHaveLength(2);
+});
+
+it("renders online and offline presence for the chat participant", () => {
+  mockChatState = {
+    ...mockChatState,
+    presence: { "peer-1": { isOnline: true, lastSeen: new Date() } },
+  };
+  let view = renderChat();
+  expect(findText(view, "Speaker is online")).toBeTruthy();
+  act(() => view.unmount());
+
+  mockChatState = {
+    ...mockChatState,
+    presence: { "peer-1": { isOnline: false, lastSeen: new Date() } },
+  };
+  view = renderChat();
+  expect(findText(view, "Speaker is offline")).toBeTruthy();
+  act(() => view.unmount());
 });
 
 it("shows the wrong-password error and then opens setup after a successful restore", async () => {

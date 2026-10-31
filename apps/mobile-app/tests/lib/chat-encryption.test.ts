@@ -277,6 +277,17 @@ describe('chat-encryption', () => {
       await expect(fetchOwnChatPublicKey('user-123')).rejects.toThrow(/Failed to verify the account chat key/);
     });
 
+    it('rejects an unexpected account-key response instead of treating it as absent', async () => {
+      mockRequest.mockResolvedValueOnce({
+        data: { data: { success: false, error: 'unexpected_response' } },
+        success: true,
+      });
+
+      await expect(fetchOwnChatPublicKey('user-123')).rejects.toThrow(
+        'The account chat key could not be verified',
+      );
+    });
+
     it('returns the published key and can re-publish the same local key without generating a replacement', async () => {
       const privateKey = x25519.utils.randomSecretKey();
       const publicKey = x25519.getPublicKey(privateKey);
@@ -378,6 +389,22 @@ describe('chat-encryption', () => {
           publicKey: bytesToHex(x25519.getPublicKey(privateKey)),
         },
       }));
+    });
+
+    it('returns a readable error when restored-key publication rejects with a non-Error value', async () => {
+      const privateKey = x25519.utils.randomSecretKey();
+      const backup = encryptPrivateKeyForBackup(privateKey, 'backup-password');
+      mockRequest
+        .mockResolvedValueOnce({
+          data: { data: { success: true, encrypted_private_key: backup.encryptedKey, salt: backup.salt } },
+          success: true,
+        })
+        .mockRejectedValueOnce('publication unavailable');
+
+      await expect(restoreChatKeyPair('user-123', 'backup-password')).resolves.toEqual({
+        success: false,
+        error: 'Unable to publish restored key',
+      });
     });
 
     it('returns a wrong-password error without publishing when decryption fails', async () => {

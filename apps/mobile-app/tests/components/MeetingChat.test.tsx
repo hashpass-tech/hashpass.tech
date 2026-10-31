@@ -137,3 +137,24 @@ it('uses the speaker profile photo for the speaker’s own messages and the requ
 
   await act(async () => view.unmount());
 });
+
+it('clears the peer when the speaker profile has no linked chat user', async () => {
+  mockFrom.mockImplementation((table: string) => {
+    const query = makeQuery();
+    if (table === 'bsl_speakers') {
+      query.maybeSingle = jest.fn(async () => ({
+        data: { ...mockSpeaker, user_id: null },
+        error: null,
+      }));
+    }
+    return query;
+  });
+
+  const view = await renderMeetingChat();
+
+  const chat = view.root.findByType('RealtimeChat' as any);
+  expect(chat.props.otherParticipantId).toBeUndefined();
+  expect(mockRpc).not.toHaveBeenCalledWith('get_meeting_chat_participant', expect.anything());
+
+  await act(async () => view.unmount());
+});

@@ -270,6 +270,45 @@ describe('useRealtimeChat', () => {
     await act(async () => renderer.unmount());
   });
 
+  it('keeps key setup blocked when checking a mismatched key backup fails', async () => {
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(false);
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockHasChatKeyBackup.mockResolvedValue({ hasBackup: false, error: 'backup service unavailable' });
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(latest!.keyMismatch).toBe(true);
+    expect(latest!.keysReady).toBe(false);
+    expect(latest!.error).toBe('Failed to check for chat key backup: backup service unavailable');
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('accepts the local key when it matches the account public key', async () => {
+    mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
+    mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(true);
+
+    const renderer = await renderHook({
+      meetingId: 'meeting-1',
+      roomName: 'room-1',
+      username: 'Me',
+      userId: 'my-user-id',
+      otherParticipantId: 'other-user',
+    });
+
+    expect(latest!.keyMismatch).toBe(false);
+    expect(latest!.keysReady).toBe(true);
+    expect(mockFetchParticipantPublicKey).toHaveBeenCalledWith('other-user');
+
+    await act(async () => renderer.unmount());
+  });
+
   it('keeps chat read-only when the device key is missing but the account already has a published key', async () => {
     mockLoadChatKeyPair.mockResolvedValue(null);
     mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
