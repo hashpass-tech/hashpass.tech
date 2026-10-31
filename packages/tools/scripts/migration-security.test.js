@@ -630,7 +630,7 @@ describe('encrypted meeting chat realtime contract', () => {
     expect(config.groups['meeting-chat-e2e']).toContain(
       'db/migrations/V160__preserve_meeting_chat_participant_profiles.sql',
     );
-    expect(config.groups['meeting-chat-e2e']).toContain(
+    expect(config.groups['meeting-chat-e2e']).not.toContain(
       'db/migrations/V161__authenticate_meeting_chat_api_access.sql',
     );
     expect(migration).toMatch(/ALTER PUBLICATION supabase_realtime ADD TABLE public\.meeting_chat_messages/i);
@@ -653,6 +653,26 @@ describe('encrypted meeting chat realtime contract', () => {
     expect(migration).toMatch(/WHERE public\.user_chat_keys\.public_key = EXCLUDED\.public_key/i);
     expect(migration).toMatch(/key_already_registered/i);
     expect(migration).not.toMatch(/encrypted_private_key_backup\s*=\s*NULL/i);
+  });
+
+  it('runs chat API hardening after optional key-backup schema and tolerates profiles without it', () => {
+    const config = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+    const migration = fs.readFileSync(meetingChatApiBoundaryMigrationPath, 'utf8');
+    const securityMigration = 'db/migrations/V161__authenticate_meeting_chat_api_access.sql';
+
+    expect(config.defaultGroups).not.toContain('meeting-chat-api-security');
+    expect(config.groups['meeting-chat-api-security']).toEqual([securityMigration]);
+    for (const profileName of ['core-development', 'core-production']) {
+      const groups = config.profileGroups[profileName];
+      expect(groups.indexOf('meeting-chat-api-security')).toBeGreaterThan(groups.indexOf('chat-key-backup'));
+    }
+    expect(config.profileGroups['bsl-development']).toContain('meeting-chat-api-security');
+    expect(config.profileGroups['bsl-development']).not.toContain('chat-key-backup');
+
+    expect(migration).toMatch(/FOREACH v_function IN ARRAY ARRAY\[/i);
+    expect(migration).toMatch(/IF to_regprocedure\(v_function\) IS NOT NULL THEN/i);
+    expect(migration).toMatch(/REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION %s TO service_role/i);
   });
 
   it('preserves speaker profile data when participant fallback queries find no user row', () => {

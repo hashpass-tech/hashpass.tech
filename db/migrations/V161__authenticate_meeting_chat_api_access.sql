@@ -23,13 +23,6 @@ REVOKE EXECUTE ON FUNCTION public.get_user_chat_public_key(uuid)
   FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.publish_user_chat_public_key(uuid, text)
   FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.store_chat_key_backup(uuid, text, text)
-  FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.get_chat_key_backup(uuid)
-  FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.delete_chat_key_backup(uuid)
-  FROM PUBLIC, anon, authenticated;
-
 GRANT EXECUTE ON FUNCTION public.send_meeting_chat_message(uuid, uuid, text, text, text)
   TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_meeting_chat_messages(uuid, uuid)
@@ -146,12 +139,32 @@ REVOKE EXECUTE ON FUNCTION public.get_meeting_chat_participant(uuid, uuid)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_meeting_chat_participant(uuid, uuid)
   TO service_role;
-GRANT EXECUTE ON FUNCTION public.store_chat_key_backup(uuid, text, text)
-  TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_chat_key_backup(uuid)
-  TO service_role;
-GRANT EXECUTE ON FUNCTION public.delete_chat_key_backup(uuid)
-  TO service_role;
+
+-- The backup schema is optional for some tenant profiles. For profiles that
+-- install it, revoke the migration's authenticated grants; for others, skip
+-- absent functions instead of aborting the whole migration.
+DO $$
+DECLARE
+  v_function text;
+BEGIN
+  FOREACH v_function IN ARRAY ARRAY[
+    'public.store_chat_key_backup(uuid, text, text)',
+    'public.get_chat_key_backup(uuid)',
+    'public.delete_chat_key_backup(uuid)'
+  ] LOOP
+    IF to_regprocedure(v_function) IS NOT NULL THEN
+      EXECUTE format(
+        'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated',
+        v_function
+      );
+      EXECUTE format(
+        'GRANT EXECUTE ON FUNCTION %s TO service_role',
+        v_function
+      );
+    END IF;
+  END LOOP;
+END;
+$$;
 
 -- Publishing an identical key is idempotent and must preserve its encrypted
 -- backup. Replacing a registered key is a destructive rotation because all
