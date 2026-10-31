@@ -3,61 +3,62 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Pressable } from 'react-native';
 
 let mockUserId: string | null = 'user-a';
-const mockQuery = jest.fn();
-const mockEq = jest.fn();
-jest.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ dbUserId: mockUserId }) }));
+const mockGetUserBalance = jest.fn();
+jest.mock('../../hooks/useAuth', () => ({ useAuth: () => ({
+  dbUserId: mockUserId,
+  isLoggedIn: Boolean(mockUserId),
+  user: mockUserId ? { id: mockUserId } : null,
+}) }));
 jest.mock('../../hooks/useTheme', () => ({ useTheme: () => ({ colors: {
   primary: '#a00', divider: '#ddd', background: { paper: '#fff' }, text: { primary: '#111', secondary: '#555' },
 } }) }));
 jest.mock('../../i18n/i18n', () => ({ useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }) }));
-jest.mock('../../lib/supabase', () => ({ supabase: { from: () => ({ select: () => {
-  const query = { eq: (...args: unknown[]) => { mockEq(...args); return query; }, maybeSingle: mockQuery };
-  return query;
-} }) } }));
+jest.mock('../../lib/lukas-reward-service', () => ({
+  lukasRewardService: { getUserBalance: (...args: unknown[]) => mockGetUserBalance(...args) },
+}));
 import Rewards from '../../components/BlockchainTokensView';
 
 let view: ReactTestRenderer;
 const content = () => JSON.stringify(view.toJSON());
 afterEach(() => { if (view) act(() => view.unmount()); });
 beforeAll(() => { window.addEventListener = jest.fn(); window.removeEventListener = jest.fn(); });
-beforeEach(() => { mockUserId = 'user-a'; mockQuery.mockReset(); mockEq.mockClear(); });
+beforeEach(() => { mockUserId = 'user-a'; mockGetUserBalance.mockReset(); });
 
 it('keeps provider errors unavailable and allows retry to an authoritative zero', async () => {
-  mockQuery.mockResolvedValueOnce({ data: null, error: { message: 'offline' } })
-    .mockResolvedValueOnce({ data: null, error: null });
+  mockGetUserBalance.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(0);
   await act(async () => { view = create(<Rewards />); });
   expect(content()).toContain('Unavailable');
-  expect(mockEq).toHaveBeenCalledWith('user_id', 'user-a');
+  expect(mockGetUserBalance).toHaveBeenCalledWith('LUKAS');
   await act(async () => { view.root.findByType(Pressable).props.onPress(); });
   expect(content()).not.toContain('Unavailable');
   expect(content()).toContain('"0"');
 });
 
 it('does not show old-user balances when an earlier request finishes late', async () => {
-  let resolveOld!: (value: unknown) => void;
-  mockQuery.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve; }))
-    .mockResolvedValueOnce({ data: { balance: '12.500' }, error: null });
+  let resolveOld!: (value: number) => void;
+  mockGetUserBalance.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve; }))
+    .mockResolvedValueOnce(12.5);
   await act(async () => { view = create(<Rewards />); });
   mockUserId = 'user-b';
   await act(async () => { view.update(<Rewards />); });
-  await act(async () => { resolveOld({ data: { balance: '999' }, error: null }); });
-  expect(content()).toContain('12.500');
+  await act(async () => { resolveOld(999); });
+  expect(content()).toContain('12.5');
   expect(content()).not.toContain('999');
   mockUserId = null;
   await act(async () => { view.update(<Rewards />); });
-  expect(content()).not.toContain('12.500');
+  expect(content()).not.toContain('12.5');
   expect(content()).toContain('Sign in');
-  expect(mockQuery).toHaveBeenCalledTimes(2);
+  expect(mockGetUserBalance).toHaveBeenCalledTimes(2);
 });
 
-it.each(['NaN', '-1', '', 'Infinity'])('rejects invalid provider amount %s', async amount => {
-  mockQuery.mockResolvedValue({ data: { balance: amount }, error: null });
+it.each(['NaN', '-1', '', 'Infinity'])('rejects invalid reward service amount %s', async amount => {
+  mockGetUserBalance.mockResolvedValue(amount as unknown as number);
   await act(async () => { view = create(<Rewards />); });
   expect(content()).toContain('Unavailable');
 });
 
 it('handles rejected requests without substituting zero', async () => {
-  mockQuery.mockRejectedValue(new Error('offline'));
+  mockGetUserBalance.mockRejectedValue(new Error('offline'));
   await act(async () => { view = create(<Rewards />); });
   expect(content()).toContain('Unavailable');
 });
