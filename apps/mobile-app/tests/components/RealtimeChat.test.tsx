@@ -24,7 +24,7 @@ function skipKeyRestore() {
   mockChatState = { ...mockChatState, needsKeyRestore: false };
 }
 
-let mockChatState = {
+let mockChatState: { messages: any[]; [key: string]: any } = {
   messages: [],
   sendMessage: jest.fn(),
   isConnected: true,
@@ -32,6 +32,7 @@ let mockChatState = {
   loading: false,
   error: null,
   otherKeyMissing: false,
+  keyMismatch: false,
   needsKeyRestore: false,
   restoreKeyFromBackup,
   skipKeyRestore,
@@ -76,6 +77,29 @@ jest.mock("react-native-css-interop/jsx-runtime", () =>
 
 jest.mock("@expo/vector-icons", () => ({ MaterialIcons: "MaterialIcons" }));
 jest.mock("../../components/SpeakerAvatar", () => "SpeakerAvatar");
+jest.mock("@hashpass/ui/primitives", () => ({ IconButton: "IconButton" }));
+jest.mock("@hashpass/ui/tokens", () => ({
+  uiPalette: () => ({
+    canvas: "#ffffff",
+    surface: "#f7f9fa",
+    raised: "#ffffff",
+    border: "#dfe3e8",
+    text: "#17181c",
+    muted: "#565963",
+    accent: "#af0d01",
+    accentFill: "#af0d01",
+    onAccent: "#ffffff",
+    accentSoft: "#fff1f0",
+    danger: "#b42318",
+    success: "#187548",
+  }),
+  uiTokens: {
+    radius: { media: 16, input: 12, circle: 999 },
+    space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 },
+    control: { compactHeight: 44 },
+    type: { caption: 12, label: 14, body: 16, title: 24 },
+  },
+}));
 
 jest.mock("../../hooks/useTheme", () => ({
   useTheme: () => ({
@@ -123,7 +147,10 @@ jest.mock("../../lib/supabase", () => ({
 
 import RealtimeChat from "../../components/RealtimeChat";
 
-function renderChat(needsKeyRestore = false): ReactTestRenderer {
+function renderChat(
+  needsKeyRestore = false,
+  avatars: { currentUserAvatar?: string; otherParticipantAvatar?: string } = {},
+): ReactTestRenderer {
   mockChatState = { ...mockChatState, needsKeyRestore };
   let view!: ReactTestRenderer;
   act(() => {
@@ -132,6 +159,8 @@ function renderChat(needsKeyRestore = false): ReactTestRenderer {
         roomName="room-1"
         username="Viewer"
         meetingId="meeting-1"
+        otherParticipantName="Speaker"
+        {...avatars}
       />,
     );
   });
@@ -181,6 +210,8 @@ beforeEach(() => {
   mockRpc.mockResolvedValue({ data: null, error: null });
   mockChatState = {
     ...mockChatState,
+    messages: [],
+    keyMismatch: false,
     needsKeyRestore: false,
   };
 });
@@ -200,6 +231,26 @@ it("validates an empty restore password before calling the restore hook", async 
 
   expect(findText(view, "Please enter your backup password")).toBeTruthy();
   expect(mockRestoreKeyFromBackup).not.toHaveBeenCalled();
+});
+
+it("uses the supplied profile photos for both participants and groups incoming sender names", () => {
+  mockChatState = {
+    ...mockChatState,
+    messages: [
+      { id: "m1", content: "Hello", user: { id: "peer-1", name: "Peer" }, createdAt: "2026-10-31T10:00:00Z" },
+      { id: "m2", content: "Again", user: { id: "peer-1", name: "Peer" }, createdAt: "2026-10-31T10:01:00Z" },
+      { id: "m3", content: "Hi", user: { id: "viewer-1", name: "Viewer" }, createdAt: "2026-10-31T10:02:00Z" },
+    ],
+  };
+  const view = renderChat(false, {
+    currentUserAvatar: "https://cdn.example.com/current.png",
+    otherParticipantAvatar: "https://cdn.example.com/speaker.png",
+  });
+
+  const avatars = view.root.findAllByType("SpeakerAvatar" as any);
+  expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/current.png")).toBe(true);
+  expect(avatars.some((avatar) => avatar.props.imageUrl === "https://cdn.example.com/speaker.png")).toBe(true);
+  expect(view.root.findAllByType("Text" as any).filter((node) => node.props.children === "Speaker")).toHaveLength(2);
 });
 
 it("shows the wrong-password error and then opens setup after a successful restore", async () => {

@@ -4,23 +4,12 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
- TouchableOpacity } from 'react-native';
+} from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
-import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useToastHelpers } from '../contexts/ToastContext';
 import RealtimeChat from './RealtimeChat';
-
-interface Meeting {
-  id: string;
-  speaker_name: string;
-  requester_name: string;
-  status: string;
-  scheduled_at: string;
-  location?: string;
-  meeting_link?: string;
-}
 
 interface MeetingChatProps {
   meetingId: string;
@@ -33,13 +22,14 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
   const { showError } = useToastHelpers();
   const styles = getStyles(isDark, colors);
 
-  const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [loading, setLoading] = useState(true);
   const [otherParticipant, setOtherParticipant] = useState<{
     id: string;
     name: string;
     avatar?: string;
   } | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string | undefined>();
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>();
 
   const loadMeetingInfo = useCallback(async () => {
     // Only check authentication after auth has finished loading
@@ -79,8 +69,6 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
       }
 
       if (meetingData) {
-        setMeeting(meetingData);
-        
         // Determine other participant. meetings.requester_id is a real
         // Supabase auth uuid — must compare against dbUserId, not user.id
         // (Better Auth's own id), or this always misidentifies which side
@@ -88,25 +76,34 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
         const isRequester = meetingData.requester_id === dbUserId;
         let otherUserId: string | null = null;
         let otherUserName: string | null = null;
+        let otherUserAvatar: string | undefined;
+        let speakerName: string | undefined;
+        let speakerAvatar: string | undefined;
+
+        const { data: speakerData } = await supabase
+          .from('bsl_speakers')
+          .select('user_id, name, imageurl')
+          .eq('id', meetingData.speaker_id)
+          .maybeSingle();
+        speakerName = speakerData?.name || meetingData.speaker_name || undefined;
+        speakerAvatar = speakerData?.imageurl || undefined;
         
         if (isRequester) {
-          // User is requester, other is speaker
-          // Get speaker's user_id from bsl_speakers
-          const { data: speakerData } = await supabase
-            .from('bsl_speakers')
-            .select('user_id, name, imageurl')
-            .eq('id', meetingData.speaker_id)
-            .single();
-          
           if (speakerData?.user_id) {
             otherUserId = speakerData.user_id;
             otherUserName = meetingData.speaker_name || speakerData.name;
+            otherUserAvatar = speakerAvatar;
           }
         } else {
-          // User is speaker, other is requester
           otherUserId = meetingData.requester_id;
           otherUserName = meetingData.requester_name;
-          
+          setCurrentUserName(speakerName);
+          setCurrentUserAvatar(speakerAvatar);
+        }
+
+        if (isRequester) {
+          setCurrentUserName(undefined);
+          setCurrentUserAvatar(undefined);
         }
 
         if (otherUserId) {
@@ -117,8 +114,10 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
           setOtherParticipant({
             id: otherUserId,
             name: participant?.success ? (participant.name || otherUserName || 'User') : (otherUserName || 'User'),
-            avatar: participant?.success ? (participant.avatar_url || undefined) : undefined,
+            avatar: (participant?.success ? participant.avatar_url : undefined) || otherUserAvatar,
           });
+        } else {
+          setOtherParticipant(null);
         }
       }
     } catch (error) {
@@ -179,11 +178,12 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
       {/* Real-time Chat Component */}
       <RealtimeChat
         roomName={`meeting_chat_${meetingId}`}
-        username={user?.user_metadata?.full_name || user?.email || 'user'}
+        username={currentUserName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You'}
         meetingId={meetingId}
         otherParticipantId={otherParticipant?.id}
         otherParticipantName={otherParticipant?.name}
         otherParticipantAvatar={otherParticipant?.avatar}
+        currentUserAvatar={currentUserAvatar}
       />
     </View>
   );

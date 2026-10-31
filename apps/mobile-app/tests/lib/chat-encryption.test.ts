@@ -30,6 +30,9 @@ import {
   ensureChatKeyPair,
   loadChatKeyPair,
   fetchParticipantPublicKey,
+  fetchOwnChatPublicKey,
+  publishChatPublicKey,
+  doesChatPrivateKeyMatchPublicKey,
   encryptChatMessage,
   decryptChatMessage,
   encryptPrivateKeyForBackup,
@@ -52,6 +55,16 @@ describe('chat-encryption', () => {
   });
 
   describe('encrypt/decrypt round trip', () => {
+    it('detects when the saved private key matches the account public key', () => {
+      const privateKey = x25519.utils.randomSecretKey();
+      const publicKey = x25519.getPublicKey(privateKey);
+      const otherPublicKey = x25519.getPublicKey(x25519.utils.randomSecretKey());
+
+      expect(doesChatPrivateKeyMatchPublicKey(privateKey, publicKey)).toBe(true);
+      expect(doesChatPrivateKeyMatchPublicKey(privateKey, otherPublicKey)).toBe(false);
+      expect(doesChatPrivateKeyMatchPublicKey(new Uint8Array([1, 2]), publicKey)).toBe(false);
+    });
+
     it('lets the recipient recover the plaintext using ECDH symmetry (A encrypts with A.priv+B.pub, B decrypts with B.priv+A.pub)', () => {
       const alicePriv = x25519.utils.randomSecretKey();
       const alicePub = x25519.getPublicKey(alicePriv);
@@ -249,6 +262,37 @@ describe('chat-encryption', () => {
 
       const result = await fetchParticipantPublicKey('other-user');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchOwnChatPublicKey', () => {
+    it('distinguishes a missing account key from a failed authenticated request', async () => {
+      mockRequest.mockResolvedValueOnce({
+        data: { data: { success: false, error: 'key_not_found' } },
+        success: true,
+      });
+      await expect(fetchOwnChatPublicKey('user-123')).resolves.toBeNull();
+
+      mockRequest.mockResolvedValueOnce({ data: null, error: 'network error', success: false });
+      await expect(fetchOwnChatPublicKey('user-123')).rejects.toThrow(/Failed to verify the account chat key/);
+    });
+
+    it('returns the published key and can re-publish the same local key without generating a replacement', async () => {
+      const privateKey = x25519.utils.randomSecretKey();
+      const publicKey = x25519.getPublicKey(privateKey);
+      mockRequest.mockResolvedValueOnce({
+        data: { data: { success: true, public_key: bytesToHex(publicKey) } },
+        success: true,
+      });
+
+      await expect(fetchOwnChatPublicKey('user-123')).resolves.toEqual(publicKey);
+      await publishChatPublicKey(privateKey);
+      expect(mockRequest).toHaveBeenLastCalledWith('chat/keys', expect.objectContaining({
+        method: 'POST',
+        body: { action: 'publish-public-key', publicKey: bytesToHex(publicKey) },
+        skipEventSegment: true,
+      }));
+      expect(mockSetItemAsync).not.toHaveBeenCalled();
     });
   });
 

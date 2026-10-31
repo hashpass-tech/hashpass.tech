@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import { IconButton } from '@hashpass/ui/primitives';
+import { uiPalette, uiTokens } from '@hashpass/ui/tokens';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,21 +23,8 @@ import { getChatEmojiCategory, CHAT_EMOJI_CATEGORIES, type ChatEmojiCategory, ty
 import SpeakerAvatar from './SpeakerAvatar';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from '../contexts/NotificationContext';
-
-interface RealtimeChatProps {
-  roomName: string;
-  username: string;
-  meetingId: string;
-  otherParticipantId?: string; // User ID of the other participant
-  otherParticipantName?: string; // Name of the other participant
-  otherParticipantAvatar?: string; // Avatar URL of the other participant
-}
-
-// Helper function to generate user avatar URL
-const generateUserAvatarUrl = (name: string): string => {
-  const seed = name.toLowerCase().replace(/\s+/g, '-');
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
-};
+import { resolveAvatarUrl } from '../lib/auth/avatar';
+import type { RealtimeChatProps } from '../types/RealtimeChat.types';
 
 export default function RealtimeChat({
   roomName,
@@ -44,66 +33,22 @@ export default function RealtimeChat({
   otherParticipantId,
   otherParticipantName,
   otherParticipantAvatar,
+  currentUserAvatar,
 }: RealtimeChatProps) {
-  const { isDark, colors } = useTheme();
+  const { isDark } = useTheme();
   const { user, dbUserId } = useAuth();
   const { refreshNotifications } = useNotifications();
-  const styles = getStyles(isDark, colors);
+  const mode = isDark ? 'dark' : 'light';
+  const palette = uiPalette(mode);
+  const styles = getStyles(palette);
 
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiCategory, setEmojiCategory] = useState<ChatEmojiCategoryId>('reactions');
   const messageInputRef = useRef<TextInput>(null);
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [otherUserAvatar, setOtherUserAvatar] = useState<string | null>(null);
   const [presence, setPresence] = useState<{ [userId: string]: { isOnline: boolean; lastSeen: Date } }>({});
-
-  // Load user avatar
-  useEffect(() => {
-    const loadUserAvatar = async () => {
-      if (!user) return;
-      
-      // Try to get avatar from user metadata
-      const avatarUrl = user.user_metadata?.avatar_url;
-      if (avatarUrl) {
-        setUserAvatar(avatarUrl);
-      } else {
-        // Generate avatar from name
-        const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-        setUserAvatar(generateUserAvatarUrl(name));
-      }
-    };
-    
-    loadUserAvatar();
-  }, [user]);
-
-  // Load other participant avatar
-  // IMPORTANT: Always prioritize otherParticipantAvatar (speaker avatar) if provided
-  // This ensures speaker avatars from bsl_speakers are always used
-  useEffect(() => {
-    const loadOtherAvatar = async () => {
-      // Priority 1: Use provided avatar (speaker avatar from bsl_speakers)
-      if (otherParticipantAvatar) {
-        setOtherUserAvatar(otherParticipantAvatar);
-        return; // Don't override with generated avatar
-      }
-      
-      // Priority 2: Generate avatar from name (only if no avatar provided)
-      if (otherParticipantName) {
-        setOtherUserAvatar(generateUserAvatarUrl(otherParticipantName));
-        return;
-      }
-      
-      // Priority 3: Fallback to ID-based avatar
-      if (otherParticipantId && user) {
-        const fallbackName = otherParticipantId.substring(0, 8);
-        setOtherUserAvatar(generateUserAvatarUrl(fallbackName));
-      }
-    };
-    
-    loadOtherAvatar();
-  }, [otherParticipantAvatar, otherParticipantName, otherParticipantId, user]);
+  const ownAvatarUrl = currentUserAvatar || resolveAvatarUrl(user);
 
   // Use real-time chat hook: loads + persists + decrypts message history,
   // subscribes to new rows via postgres_changes, and tracks presence.
@@ -119,6 +64,7 @@ export default function RealtimeChat({
     loading,
     error,
     otherKeyMissing,
+    keyMismatch,
     needsKeyRestore,
     restoreKeyFromBackup,
     skipKeyRestore,
@@ -352,15 +298,10 @@ export default function RealtimeChat({
     const isSystemMessage = message.messageType === 'system';
     const isMeetingUpdate = message.messageType === 'meeting_update';
     
-    // For own messages: use userAvatar (generated from user metadata or name)
-    // For incoming messages: ALWAYS use otherParticipantAvatar if provided (speaker avatar from bsl_speakers)
-    // This ensures speaker avatars are correctly displayed for incoming messages
-    const messageAvatar = isOwnMessage 
-      ? userAvatar 
-      : (otherParticipantAvatar || otherUserAvatar); // Prioritize otherParticipantAvatar (speaker avatar)
+    const messageAvatar = isOwnMessage ? ownAvatarUrl : otherParticipantAvatar;
     
     const messageName = isOwnMessage 
-      ? (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You')
+      ? (username || 'You')
       : (otherParticipantName || message.user.name || 'User');
 
     // Different colors for different message types
@@ -405,21 +346,34 @@ export default function RealtimeChat({
               !isOwnMessage && styles.incomingMessageContent,
             ]}>
               {!isOwnMessage && (
-                <Text style={styles.senderName}>
-                  {messageName}
-                </Text>
+                index === 0 || allMessages[index - 1]?.user.id !== message.user.id ? (
+                  <Text style={styles.senderName}>{messageName}</Text>
+                ) : null
               )}
               <View style={[
                 styles.messageBubble,
                 getMessageBubbleStyle(),
+                message.decryptionFailed && styles.undecryptedMessageBubble,
               ]}>
-                <Text style={[
-                  styles.messageText,
-                  isOwnMessage && styles.ownMessageText,
-                  !isOwnMessage && styles.incomingMessageText,
-                ]}>
-                  {message.content}
-                </Text>
+                {message.decryptionFailed ? (
+                  <View style={styles.undecryptedMessageContent}>
+                    <MaterialIcons name="lock-outline" size={16} color={palette.danger} />
+                    <View style={styles.undecryptedMessageCopy}>
+                      <Text style={styles.undecryptedMessageTitle}>Message could not be decrypted</Text>
+                      <Text style={styles.undecryptedMessageText}>
+                        A chat key may have changed, or this message may be damaged.
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={[
+                    styles.messageText,
+                    isOwnMessage && styles.ownMessageText,
+                    !isOwnMessage && styles.incomingMessageText,
+                  ]}>
+                    {message.content}
+                  </Text>
+                )}
               </View>
               <Text style={[
                 styles.messageTime,
@@ -457,7 +411,7 @@ export default function RealtimeChat({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={palette.accent} />
         <Text style={styles.loadingText}>Loading chat...</Text>
       </View>
     );
@@ -466,7 +420,7 @@ export default function RealtimeChat({
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <MaterialIcons name="error-outline" size={48} color="#F44336" />
+        <MaterialIcons name="error-outline" size={48} color={palette.danger} />
         <Text style={styles.errorTitle}>Failed to Load Chat</Text>
         <Text style={styles.errorMessage}>{error}</Text>
       </View>
@@ -497,37 +451,28 @@ export default function RealtimeChat({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header with participant info and last seen - Avatar always visible for speaker */}
-      {(otherParticipantName || otherParticipantAvatar) && (
-        <View style={styles.chatHeader}>
-          <View style={styles.headerInfo}>
-            <View style={styles.headerAvatarContainer}>
-              <SpeakerAvatar
-                name={otherParticipantName || 'User'}
-                imageUrl={otherParticipantAvatar || undefined}
-                size={40}
-                showBorder={true}
-              />
-              {isOtherParticipantOnline && (
-                <View style={styles.onlineIndicator} />
-              )}
-            </View>
-            <View style={styles.headerTextContainer}>
-              {otherParticipantName && (
-                <Text style={styles.headerName}>{otherParticipantName}</Text>
-              )}
-              {lastSeenText && (
-                <Text style={styles.headerLastSeen}>{lastSeenText}</Text>
-              )}
-            </View>
+      <View style={styles.chatHeader}>
+        <View style={styles.headerInfo}>
+          <View style={styles.headerAvatarContainer}>
+            <SpeakerAvatar
+              name={otherParticipantName || 'User'}
+              imageUrl={otherParticipantAvatar || undefined}
+              size={48}
+              showBorder
+            />
+            {isOtherParticipantOnline && <View style={styles.onlineIndicator} />}
+          </View>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerName}>{otherParticipantName || 'Meeting participant'}</Text>
+            <Text style={styles.headerLastSeen}>{lastSeenText || 'Private meeting chat'}</Text>
           </View>
         </View>
-      )}
+      </View>
       
       {/* Connection Status and Presence */}
       <View style={styles.statusBar}>
         <View style={styles.statusLeft}>
-          <View style={[styles.statusIndicator, { backgroundColor: isConnected ? '#4CAF50' : '#F44336' }]} />
+          <View style={[styles.statusIndicator, { backgroundColor: isConnected ? palette.success : palette.danger }]} />
           <Text style={styles.statusText}>
             {isConnected ? 'Connected' : 'Connecting...'}
           </Text>
@@ -536,7 +481,7 @@ export default function RealtimeChat({
           <View style={styles.presenceContainer}>
             <View style={[
               styles.presenceIndicator,
-              { backgroundColor: presence[otherParticipantId].isOnline ? '#4CAF50' : '#9E9E9E' }
+              { backgroundColor: presence[otherParticipantId].isOnline ? palette.success : palette.muted }
             ]} />
             <Text style={styles.presenceText}>
               {presence[otherParticipantId].isOnline 
@@ -547,6 +492,24 @@ export default function RealtimeChat({
           </View>
         )}
       </View>
+
+      {allMessages.some((message) => message.decryptionFailed) && (
+        <View style={styles.decryptNotice}>
+          <MaterialIcons name="lock-outline" size={16} color={palette.muted} />
+          <Text style={styles.decryptNoticeText}>
+            Some messages can’t be verified with the current chat keys. Restore your saved key backup, or ask the other participant to restore theirs.
+          </Text>
+        </View>
+      )}
+
+      {keyMismatch && !needsKeyRestore && (
+        <View style={styles.keyMismatchBanner}>
+          <MaterialIcons name="vpn-key" size={18} color={palette.danger} />
+          <Text style={styles.keyMismatchText}>
+            This device can’t access the private key registered to your account. Sending is paused so new messages stay readable. Restore an encrypted key backup or use a device that still has the key; older messages can’t be recovered without it.
+          </Text>
+        </View>
+      )}
 
       {/* Messages */}
       <ScrollView
@@ -567,7 +530,7 @@ export default function RealtimeChat({
           <MaterialIcons
             name="info-outline"
             size={20}
-            color={isDark ? '#f7b955' : '#9a6700'}
+            color={palette.accent}
             accessibilityLabel="Secure chat setup information"
           />
           <View style={styles.keyWaitingCopy}>
@@ -621,10 +584,10 @@ export default function RealtimeChat({
           value={newMessage}
           onChangeText={setNewMessage}
           placeholder="Type your message..."
-          placeholderTextColor={colors.text.secondary}
+          placeholderTextColor={palette.muted}
           multiline
           maxLength={500}
-          editable={!otherKeyMissing}
+          editable={!otherKeyMissing && !keyMismatch}
           // React Native Web normally forwards Enter through onKeyPress.
           // onSubmitEditing is retained as a browser fallback for multiline
           // inputs where key events are intercepted by a host container.
@@ -642,27 +605,26 @@ export default function RealtimeChat({
         <TouchableOpacity
           style={[styles.emojiButton, showEmojiPicker && styles.emojiButtonActive]}
           onPress={() => setShowEmojiPicker((visible) => !visible)}
-          disabled={otherKeyMissing}
+          disabled={otherKeyMissing || keyMismatch}
           accessibilityRole="button"
           accessibilityLabel="Add emoji"
         >
           <MaterialIcons
             name="emoji-emotions"
             size={22}
-            color={otherKeyMissing ? (isDark ? '#666666' : '#aaaaaa') : (colors.primary || '#007AFF')}
+            color={otherKeyMissing || keyMismatch ? palette.muted : palette.accent}
           />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sendButton, (!newMessage.trim() || sending || otherKeyMissing) && styles.sendButtonDisabled]}
+        <IconButton
+          mode={mode}
+          label="Send message"
           onPress={handleSendMessage}
-          disabled={!newMessage.trim() || sending || otherKeyMissing}
+          disabled={!newMessage.trim() || sending || otherKeyMissing || keyMismatch}
+          loading={sending}
+          style={[styles.sendButton, (!newMessage.trim() || sending || otherKeyMissing || keyMismatch) && styles.sendButtonDisabled]}
         >
-          {sending ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <MaterialIcons name="send" size={20} color="white" />
-          )}
-        </TouchableOpacity>
+          <MaterialIcons name="send" size={20} color={palette.onAccent} />
+        </IconButton>
       </View>
 
       {/* Key Backup Restore Modal - shown when user has no local key but a
@@ -671,32 +633,34 @@ export default function RealtimeChat({
         visible={showRestoreModal}
         transparent
         animationType="fade"
-        onRequestClose={handleSkipRestore}
+        onRequestClose={keyMismatch ? () => undefined : handleSkipRestore}
       >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: isDark ? '#2a2a2a' : '#ffffff' }]}>
+          <View style={[styles.modalCard, { backgroundColor: palette.raised }]}>
             <MaterialIcons
               name="lock-reset"
               size={48}
-              color={colors.primary || '#007AFF'}
+              color={palette.accent}
               style={{ marginBottom: 16 }}
             />
-            <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>
+            <Text style={[styles.modalTitle, { color: palette.text }]}>
               Restore Chat History?
             </Text>
-            <Text style={[styles.modalText, { color: isDark ? '#cccccc' : '#666666' }]}>
-              You have an encrypted backup of your chat history. Enter your backup password to restore it and decrypt your previous messages.
+            <Text style={[styles.modalText, { color: palette.muted }]}>
+              {keyMismatch
+                ? 'This device cannot access the private key registered to your account. Enter your encrypted backup password to restore the matching key and continue securely.'
+                : 'You have an encrypted backup of your chat history. Enter your backup password to restore it and decrypt your previous messages.'}
             </Text>
             <TextInput
               style={[styles.modalInput, {
-                backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5',
-                color: isDark ? '#ffffff' : '#1a1a1a',
-                borderColor: restoreError ? '#F44336' : (isDark ? '#444444' : '#e0e0e0'),
+                backgroundColor: palette.surface,
+                color: palette.text,
+                borderColor: restoreError ? palette.danger : palette.border,
               }]}
               value={restorePassword}
               onChangeText={setRestorePassword}
               placeholder="Backup password"
-              placeholderTextColor={isDark ? '#888888' : '#999999'}
+              placeholderTextColor={palette.muted}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -705,17 +669,17 @@ export default function RealtimeChat({
               <Text style={styles.modalError}>{restoreError}</Text>
             )}
             <View style={styles.modalButtons}>
+              {!keyMismatch && (
+                <TouchableOpacity
+                  style={styles.modalButtonSecondary}
+                  onPress={handleSkipRestore}
+                  disabled={restoreLoading}
+                >
+                  <Text style={[styles.modalButtonTextSecondary, { color: palette.muted }]}>Skip</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={styles.modalButtonSecondary}
-                onPress={handleSkipRestore}
-                disabled={restoreLoading}
-              >
-                <Text style={[styles.modalButtonTextSecondary, { color: isDark ? '#cccccc' : '#666666' }]}>
-                  Skip
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButtonPrimary, { backgroundColor: colors.primary || '#007AFF' }]}
+                style={[styles.modalButtonPrimary, { backgroundColor: palette.accentFill }]}
                 onPress={handleRestore}
                 disabled={restoreLoading}
               >
@@ -739,29 +703,29 @@ export default function RealtimeChat({
         onRequestClose={handleSkipSetupBackup}
       >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: isDark ? '#2a2a2a' : '#ffffff' }]}>
+          <View style={[styles.modalCard, { backgroundColor: palette.raised }]}>
             <MaterialIcons
               name="cloud-upload"
               size={48}
-              color={colors.primary || '#007AFF'}
+              color={palette.accent}
               style={{ marginBottom: 16 }}
             />
-            <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#1a1a1a' }]}>
+            <Text style={[styles.modalTitle, { color: palette.text }]}>
               Set Up Chat Backup?
             </Text>
-            <Text style={[styles.modalText, { color: isDark ? '#cccccc' : '#666666' }]}>
+            <Text style={[styles.modalText, { color: palette.muted }]}>
               Create an encrypted backup of your chat key so you can restore your messages on a new device. Choose a password to encrypt the backup — if you forget it, the backup cannot be recovered.
             </Text>
             <TextInput
               style={[styles.modalInput, {
-                backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5',
-                color: isDark ? '#ffffff' : '#1a1a1a',
-                borderColor: isDark ? '#444444' : '#e0e0e0',
+                backgroundColor: palette.surface,
+                color: palette.text,
+                borderColor: palette.border,
               }]}
               value={setupBackupPassword}
               onChangeText={setSetupBackupPassword}
               placeholder="Choose a backup password"
-              placeholderTextColor={isDark ? '#888888' : '#999999'}
+              placeholderTextColor={palette.muted}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -772,12 +736,12 @@ export default function RealtimeChat({
                 onPress={handleSkipSetupBackup}
                 disabled={setupBackupLoading}
               >
-                <Text style={[styles.modalButtonTextSecondary, { color: isDark ? '#cccccc' : '#666666' }]}>
+                <Text style={[styles.modalButtonTextSecondary, { color: palette.muted }]}>
                   Not Now
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButtonPrimary, { backgroundColor: colors.primary || '#007AFF' }]}
+                style={[styles.modalButtonPrimary, { backgroundColor: palette.accentFill }]}
                 onPress={handleSetupBackup}
                 disabled={setupBackupLoading || !setupBackupPassword.trim()}
               >
@@ -795,25 +759,28 @@ export default function RealtimeChat({
   );
 }
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background?.default || (isDark ? '#000000' : '#ffffff'),
+    backgroundColor: palette.canvas,
   },
   chatHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.md,
     borderBottomWidth: 1,
-    borderBottomColor: isDark ? '#2a2a2a' : '#e9ecef',
-    backgroundColor: colors.background?.paper || (isDark ? '#1a1a1a' : '#ffffff'),
+    borderBottomColor: palette.border,
+    backgroundColor: palette.surface,
   },
   headerInfo: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerAvatarContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: uiTokens.space.md,
   },
   onlineIndicator: {
     position: 'absolute',
@@ -822,68 +789,62 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#34A853',
+    backgroundColor: palette.success,
     borderWidth: 2,
-    borderColor: isDark ? '#1a1a1a' : '#ffffff',
+    borderColor: palette.surface,
   },
   headerTextContainer: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#000000'),
-    marginBottom: 2,
-  },
   headerName: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
-    marginBottom: 2,
+    fontSize: uiTokens.type.label,
+    fontWeight: '600',
+    color: palette.text,
+    marginBottom: uiTokens.space.xs,
   },
   headerLastSeen: {
-    fontSize: 11,
-    color: colors.text?.secondary || (isDark ? '#a0a0a0' : '#666666'),
+    fontSize: uiTokens.type.caption,
+    color: palette.muted,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background?.default || (isDark ? '#000000' : '#ffffff'),
+    backgroundColor: palette.canvas,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    fontSize: uiTokens.type.body,
+    color: palette.muted,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: colors.background?.default || (isDark ? '#000000' : '#ffffff'),
+    backgroundColor: palette.canvas,
   },
   errorTitle: {
-    fontSize: 18,
+    fontSize: uiTokens.type.label + 4,
     fontWeight: '600',
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#000000'),
-    marginTop: 16,
-    marginBottom: 8,
+    color: palette.text,
+    marginTop: uiTokens.space.lg,
+    marginBottom: uiTokens.space.sm,
   },
   errorMessage: {
-    fontSize: 14,
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    fontSize: uiTokens.type.label,
+    color: palette.muted,
     textAlign: 'center',
   },
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.background?.paper || (isDark ? '#1a1a1a' : '#f5f5f5'),
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.sm,
+    backgroundColor: palette.surface,
     borderBottomWidth: 1,
-    borderBottomColor: isDark ? '#333333' : '#e0e0e0',
+    borderBottomColor: palette.border,
   },
   statusLeft: {
     flexDirection: 'row',
@@ -897,7 +858,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    color: palette.muted,
   },
   presenceContainer: {
     flexDirection: 'row',
@@ -911,17 +872,22 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   presenceText: {
     fontSize: 11,
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    color: palette.muted,
   },
   messagesContainer: {
     flex: 1,
+    backgroundColor: palette.canvas,
   },
   messagesContent: {
-    padding: 16,
-    paddingBottom: 8,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    paddingHorizontal: uiTokens.space.lg,
+    paddingTop: uiTokens.space.xl,
+    paddingBottom: uiTokens.space.lg,
   },
   messageWrapper: {
-    marginBottom: 12,
+    marginBottom: uiTokens.space.sm,
     width: '100%',
   },
   ownMessageWrapper: {
@@ -935,7 +901,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   messageContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    maxWidth: '80%',
+    maxWidth: '88%',
     gap: 8,
   },
   ownMessageContainer: {
@@ -967,36 +933,52 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   senderName: {
-    fontSize: 12,
+    fontSize: uiTokens.type.caption,
     fontWeight: '600',
-    color: colors.text?.secondary || (isDark ? '#a0a0a0' : '#666666'),
+    color: palette.muted,
     marginBottom: 4,
     marginLeft: 8,
   },
   messageBubble: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingHorizontal: uiTokens.space.md,
+    paddingVertical: uiTokens.space.sm,
+    borderRadius: uiTokens.radius.media,
     maxWidth: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
   },
   ownMessageBubble: {
-    backgroundColor: colors.primary || '#007AFF',
-    borderTopRightRadius: 4,
+    backgroundColor: palette.accentFill,
     borderBottomRightRadius: 4,
-    borderBottomLeftRadius: 18,
-    borderTopLeftRadius: 18,
   },
   incomingMessageBubble: {
-    backgroundColor: isDark ? '#2a2a2a' : '#f1f3f5',
-    borderTopLeftRadius: 4,
+    backgroundColor: palette.surface,
     borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 18,
-    borderTopRightRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  undecryptedMessageBubble: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.danger,
+    borderWidth: 1,
+  },
+  undecryptedMessageContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: uiTokens.space.sm,
+    maxWidth: 340,
+  },
+  undecryptedMessageCopy: {
+    flex: 1,
+  },
+  undecryptedMessageTitle: {
+    color: palette.text,
+    fontSize: uiTokens.type.label,
+    fontWeight: '700',
+  },
+  undecryptedMessageText: {
+    color: palette.muted,
+    fontSize: uiTokens.type.caption,
+    lineHeight: 17,
+    marginTop: uiTokens.space.xs,
   },
   systemMessageBubble: {
     backgroundColor: 'transparent',
@@ -1004,27 +986,27 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     paddingVertical: 0,
   },
   meetingUpdateBubble: {
-    backgroundColor: isDark ? '#1a3a52' : '#e3f2fd',
+    backgroundColor: palette.accentSoft,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   messageText: {
-    fontSize: 15,
+    fontSize: uiTokens.type.body,
     lineHeight: 20,
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#000000'),
+    color: palette.text,
   },
   ownMessageText: {
-    color: '#ffffff',
+    color: palette.onAccent,
     fontWeight: '400',
   },
   incomingMessageText: {
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#1a1a1a'),
+    color: palette.text,
   },
   messageTime: {
     fontSize: 10,
-    color: colors.text?.secondary || (isDark ? '#888888' : '#999999'),
+    color: palette.muted,
     marginTop: 4,
     fontWeight: '400',
   },
@@ -1043,14 +1025,14 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: uiTokens.type.title,
     fontWeight: '600',
-    color: colors.text?.secondary || (isDark ? '#888888' : '#999999'),
+    color: palette.muted,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: colors.text?.secondary || (isDark ? '#666666' : '#999999'),
+    color: palette.muted,
     marginTop: 8,
   },
   systemMessageContainer: {
@@ -1060,7 +1042,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   systemMessageText: {
     backgroundColor: 'transparent',
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    color: palette.muted,
     textAlign: 'center',
     fontStyle: 'italic',
     padding: 8,
@@ -1070,11 +1052,11 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: isDark ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.08)',
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.md,
+    backgroundColor: palette.accentSoft,
     borderTopWidth: 1,
-    borderTopColor: isDark ? '#333333' : '#f0f0f0',
+    borderTopColor: palette.border,
   },
   keyWaitingCopy: {
     flex: 1,
@@ -1082,29 +1064,68 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   keyWaitingTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#000000'),
+    color: palette.text,
     marginBottom: 2,
   },
   keyWaitingText: {
     fontSize: 12,
-    color: colors.text?.secondary || (isDark ? '#cccccc' : '#666666'),
+    color: palette.muted,
     lineHeight: 17,
+  },
+  decryptNotice: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: uiTokens.space.sm,
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.sm,
+  },
+  decryptNoticeText: {
+    flex: 1,
+    color: palette.muted,
+    fontSize: uiTokens.type.caption,
+    lineHeight: 17,
+  },
+  keyMismatchBanner: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: uiTokens.space.sm,
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.md,
+    backgroundColor: palette.accentSoft,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  keyMismatchText: {
+    flex: 1,
+    color: palette.text,
+    fontSize: uiTokens.type.caption,
+    lineHeight: 18,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: 16,
+    width: '100%',
+    maxWidth: 1000,
+    alignSelf: 'center',
+    gap: uiTokens.space.sm,
+    padding: uiTokens.space.md,
     borderTopWidth: 1,
-    borderTopColor: isDark ? '#333333' : '#f0f0f0',
-    backgroundColor: colors.background?.paper || (isDark ? '#1a1a1a' : '#ffffff'),
+    borderTopColor: palette.border,
+    backgroundColor: palette.canvas,
   },
   emojiPicker: {
-    paddingHorizontal: 16,
+    paddingHorizontal: uiTokens.space.md,
     paddingTop: 8,
     paddingBottom: 4,
     borderTopWidth: 1,
-    borderTopColor: isDark ? '#333333' : '#f0f0f0',
-    backgroundColor: colors.background?.paper || (isDark ? '#1a1a1a' : '#ffffff'),
+    borderTopColor: palette.border,
+    backgroundColor: palette.surface,
   },
   emojiCategoryRow: {
     flexDirection: 'row',
@@ -1120,18 +1141,18 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     borderRadius: 9,
   },
   emojiCategoryButtonActive: {
-    backgroundColor: isDark ? '#283449' : '#e8f0fe',
+    backgroundColor: palette.accentSoft,
   },
   emojiCategoryIcon: {
     fontSize: 16,
   },
   emojiCategoryLabel: {
-    color: colors.text.secondary,
+    color: palette.muted,
     fontSize: 10,
     fontWeight: '600',
   },
   emojiCategoryLabelActive: {
-    color: colors.primary || '#007AFF',
+    color: palette.accent,
   },
   emojiGrid: {
     flexDirection: 'row',
@@ -1151,37 +1172,37 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   emojiButton: {
     width: 40,
     height: 44,
-    borderRadius: 20,
+    borderRadius: uiTokens.radius.circle,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
   },
   emojiButtonActive: {
-    backgroundColor: isDark ? '#283449' : '#e8f0fe',
+    backgroundColor: palette.accentSoft,
   },
   textInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: isDark ? '#333333' : '#e0e0e0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginRight: 6,
-    fontSize: 16,
-    color: colors.text?.primary || (isDark ? '#ffffff' : '#000000'),
-    backgroundColor: colors.background?.default || (isDark ? '#000000' : '#ffffff'),
+    borderColor: palette.border,
+    borderRadius: uiTokens.radius.input,
+    paddingHorizontal: uiTokens.space.md,
+    paddingVertical: uiTokens.space.md,
+    fontSize: uiTokens.type.body,
+    color: palette.text,
+    backgroundColor: palette.raised,
     maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: colors.primary || '#007AFF',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: palette.accentFill,
+    borderColor: palette.accentFill,
+    width: uiTokens.control.compactHeight,
+    height: uiTokens.control.compactHeight,
+    borderRadius: uiTokens.radius.circle,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: isDark ? '#333333' : '#e0e0e0',
+    backgroundColor: palette.border,
+    borderColor: palette.border,
   },
   // Key backup/restore modals
   modalBackdrop: {
@@ -1194,8 +1215,8 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: uiTokens.radius.card,
+    padding: uiTokens.space.xl,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1204,59 +1225,59 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     elevation: 8,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: uiTokens.type.label + 6,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: uiTokens.space.md,
     textAlign: 'center',
   },
   modalText: {
-    fontSize: 14,
+    fontSize: uiTokens.type.label,
     lineHeight: 20,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: uiTokens.space.xl,
   },
   modalInput: {
     width: '100%',
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 12,
+    borderRadius: uiTokens.radius.input,
+    paddingHorizontal: uiTokens.space.md,
+    paddingVertical: uiTokens.space.md,
+    fontSize: uiTokens.type.body,
+    marginBottom: uiTokens.space.md,
   },
   modalError: {
-    color: '#F44336',
+    color: palette.danger,
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: uiTokens.space.sm,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: uiTokens.space.md,
     width: '100%',
-    marginTop: 8,
+    marginTop: uiTokens.space.sm,
   },
   modalButtonSecondary: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: uiTokens.space.md,
+    borderRadius: uiTokens.radius.input,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: palette.border,
   },
   modalButtonPrimary: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: uiTokens.space.md,
+    borderRadius: uiTokens.radius.input,
     alignItems: 'center',
   },
   modalButtonTextSecondary: {
-    fontSize: 15,
+    fontSize: uiTokens.type.label,
     fontWeight: '600',
   },
   modalButtonTextPrimary: {
-    color: '#ffffff',
-    fontSize: 15,
+    color: palette.onAccent,
+    fontSize: uiTokens.type.label,
     fontWeight: '600',
   },
 });
