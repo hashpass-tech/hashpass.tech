@@ -6,7 +6,7 @@ const mockRpc = jest.fn();
 const mockFrom = jest.fn();
 
 type QueryResult = { data: unknown; error: unknown };
-type QueryCall = { table: string; filters: Array<[string, unknown]> };
+type QueryCall = { table: string; filters: [string, unknown][] };
 
 let results: Record<string, QueryResult>;
 let queryCalls: QueryCall[];
@@ -161,7 +161,7 @@ describe("event networking stats api", () => {
     mockResolveIdentity.mockResolvedValue({ supabaseUserId: "attendee-1" });
     mockIsIdentityError.mockReturnValue(false);
     mockRpc.mockResolvedValue({ data: { remaining_requests: 1 }, error: null });
-    results.bsl_speakers = { data: null, error: null };
+    results.bsl_speakers = { data: [], error: null };
 
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { GET } = require("../../app/api/events/[eventId]/networking/stats+api");

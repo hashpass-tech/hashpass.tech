@@ -38,9 +38,7 @@ export async function GET(request: Request) {
       // the networking dashboard would surface that as a 500.
       .limit(1);
     if (speakerError) throw speakerError;
-    const speaker = Array.isArray(speakerRows)
-      ? speakerRows[0] ?? null
-      : speakerRows ?? null;
+    const speaker = speakerRows?.[0] ?? null;
 
     let blockedUsers = 0;
     let speakerRequests = 0;

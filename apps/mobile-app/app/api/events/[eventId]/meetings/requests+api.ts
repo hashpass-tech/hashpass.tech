@@ -61,7 +61,7 @@ async function speakerForUser(supabase: any, userId: string) {
     // request queries below remain scoped by event_id.
     .limit(1);
   if (error) throw error;
-  return Array.isArray(data) ? data[0] ?? null : data ?? null;
+  return data?.[0] ?? null;
 }
 
 async function speakerForRecordId(supabase: any, speakerId: string) {
@@ -71,7 +71,7 @@ async function speakerForRecordId(supabase: any, speakerId: string) {
     .eq("id", speakerId)
     .limit(1);
   if (error) throw error;
-  return Array.isArray(data) ? data[0] ?? null : data ?? null;
+  return data?.[0] ?? null;
 }
 
 type RequestSpeakerProfile = {

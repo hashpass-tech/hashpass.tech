@@ -16,7 +16,7 @@ async function resolveSpeakerUserId(supabase: any, speakerId: string) {
     .eq("id", speakerId)
     .limit(1);
   if (byIdError) throw byIdError;
-  const speakerById = Array.isArray(byId) ? byId[0] ?? null : byId ?? null;
+  const speakerById = byId?.[0] ?? null;
   if (speakerById?.user_id) return speakerById.user_id as string;
 
   const { data: byUserId, error: byUserIdError } = await supabase
@@ -25,9 +25,7 @@ async function resolveSpeakerUserId(supabase: any, speakerId: string) {
     .eq("user_id", speakerId)
     .limit(1);
   if (byUserIdError) throw byUserIdError;
-  const speakerByUserId = Array.isArray(byUserId)
-    ? byUserId[0] ?? null
-    : byUserId ?? null;
+  const speakerByUserId = byUserId?.[0] ?? null;
   return (speakerByUserId?.user_id as string | undefined) ?? null;
 }
 
