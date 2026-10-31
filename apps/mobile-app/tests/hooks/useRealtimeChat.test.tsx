@@ -64,34 +64,10 @@ jest.mock('../../lib/chat-encryption', () => ({
   backupChatKeyPair: (...args: unknown[]) => mockBackupChatKeyPair(...args),
 }));
 
-const mockRpc = jest.fn();
-const mockRemoveChannel = jest.fn();
-let latestChannelHandlers: Record<string, (payload: any) => void> = {};
-let latestSubscribeCallback: ((status: string) => void) | null = null;
+const mockApiRequest = jest.fn();
 
-const makeMockChannel = () => {
-  const channel: any = {
-    on: jest.fn((_type: string, filterOrConfig: any, handler: (payload: any) => void) => {
-      const key = filterOrConfig?.event || filterOrConfig?.table || 'unknown';
-      latestChannelHandlers[key] = handler;
-      return channel;
-    }),
-    subscribe: jest.fn((cb?: (status: string) => void) => {
-      latestSubscribeCallback = cb || null;
-      cb?.('SUBSCRIBED');
-      return channel;
-    }),
-    send: jest.fn(),
-  };
-  return channel;
-};
-
-jest.mock('../../lib/supabase', () => ({
-  supabase: {
-    channel: jest.fn(() => makeMockChannel()),
-    removeChannel: (...args: unknown[]) => mockRemoveChannel(...args),
-    rpc: (...args: unknown[]) => mockRpc(...args),
-  },
+jest.mock('../../lib/api-client', () => ({
+  apiClient: { request: (...args: unknown[]) => mockApiRequest(...args) },
 }));
 
 // @hashpass/utils schedules a real setInterval at module-evaluation time
@@ -146,8 +122,6 @@ describe('useRealtimeChat', () => {
     // after tests are done" issue.
     jest.useFakeTimers();
     jest.clearAllMocks();
-    latestChannelHandlers = {};
-    latestSubscribeCallback = null;
     latest = null;
     mockEnsureChatKeyPair.mockResolvedValue(myPriv);
     mockLoadChatKeyPair.mockResolvedValue(myPriv);
@@ -158,11 +132,14 @@ describe('useRealtimeChat', () => {
     mockHasChatKeyBackup.mockResolvedValue({ hasBackup: false });
     mockRestoreChatKeyPair.mockResolvedValue({ success: true });
     mockBackupChatKeyPair.mockResolvedValue({ success: true });
-    mockRpc.mockImplementation((fn: string) => {
-      if (fn === 'get_meeting_chat_messages') {
-        return Promise.resolve({ data: { success: true, messages: [] }, error: null });
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') {
+        return { success: true, data: { data: { success: true, messages: [] } } };
       }
-      return Promise.resolve({ data: { success: true }, error: null });
+      if (options.body?.action === 'send') {
+        return { success: true, data: { data: { success: true, id: 'm3', created_at: '2026-08-05T10:10:00Z' } } };
+      }
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
     });
   });
 
@@ -172,19 +149,16 @@ describe('useRealtimeChat', () => {
   });
 
   it('sets up keys and loads message history, decrypting each row', async () => {
-    mockRpc.mockImplementation((fn: string) => {
-      if (fn === 'get_meeting_chat_messages') {
-        return Promise.resolve({
-          data: {
-            success: true,
-            messages: [
-              { id: 'm1', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:00:00Z' },
-            ],
-          },
-          error: null,
-        });
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') {
+        return { success: true, data: { data: {
+          success: true,
+          messages: [
+            { id: 'm1', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:00:00Z' },
+          ],
+        } } };
       }
-      return Promise.resolve({ data: { success: true }, error: null });
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
     });
     mockDecryptChatMessage.mockReturnValue('Hey, running late!');
     mockLoadChatKeyPair.mockResolvedValue(null);
@@ -201,6 +175,12 @@ describe('useRealtimeChat', () => {
     expect(mockFetchParticipantPublicKey).toHaveBeenCalledWith('other-user');
     expect(latest!.loading).toBe(false);
     expect(latest!.otherKeyMissing).toBe(false);
+    expect(latest!.keyBackupMissing).toBe(true);
+    expect(mockApiRequest).toHaveBeenCalledWith('meetings/chat', expect.objectContaining({
+      method: 'GET',
+      params: { meetingId: 'meeting-1', kind: 'messages' },
+      skipEventSegment: true,
+    }));
     expect(latest!.messages).toEqual([
       expect.objectContaining({ id: 'm1', content: 'Hey, running late!', decryptionFailed: false }),
     ]);
@@ -227,12 +207,14 @@ describe('useRealtimeChat', () => {
     expect(latest!.loading).toBe(false);
     expect(mockHasChatKeyBackup).toHaveBeenCalledWith('my-user-id');
     expect(mockEnsureChatKeyPair).not.toHaveBeenCalled();
+    expect(latest!.keyMismatch).toBe(true);
     await act(async () => {
       await expect(latest!.restoreKeyFromBackup('backup-password')).resolves.toEqual({ success: true });
     });
     expect(mockRestoreChatKeyPair).toHaveBeenCalledWith('my-user-id', 'backup-password');
     expect(latest!.needsKeyRestore).toBe(false);
     expect(latest!.keysReady).toBe(true);
+    expect(latest!.keyBackupMissing).toBe(false);
 
     await act(async () => {
       latest!.skipKeyRestore();
@@ -257,6 +239,7 @@ describe('useRealtimeChat', () => {
     expect(mockFetchOwnChatPublicKey).toHaveBeenCalledWith('my-user-id');
     expect(latest!.keyMismatch).toBe(true);
     expect(latest!.needsKeyRestore).toBe(true);
+    expect(latest!.keyBackupMissing).toBe(false);
     expect(latest!.keysReady).toBe(false);
     await expect(latest!.sendMessage('This must not be sent')).rejects.toThrow('Restore the chat key backup');
 
@@ -304,6 +287,7 @@ describe('useRealtimeChat', () => {
 
     expect(latest!.keyMismatch).toBe(false);
     expect(latest!.keysReady).toBe(true);
+    expect(latest!.keyBackupMissing).toBe(true);
     expect(mockFetchParticipantPublicKey).toHaveBeenCalledWith('other-user');
 
     await act(async () => renderer.unmount());
@@ -312,19 +296,16 @@ describe('useRealtimeChat', () => {
   it('keeps chat read-only when the device key is missing but the account already has a published key', async () => {
     mockLoadChatKeyPair.mockResolvedValue(null);
     mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
-    mockRpc.mockImplementation((fn: string) => {
-      if (fn === 'get_meeting_chat_messages') {
-        return Promise.resolve({
-          data: {
-            success: true,
-            messages: [
-              { id: 'locked-message', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:00:00Z' },
-            ],
-          },
-          error: null,
-        });
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') {
+        return { success: true, data: { data: {
+          success: true,
+          messages: [
+            { id: 'locked-message', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:00:00Z' },
+          ],
+        } } };
       }
-      return Promise.resolve({ data: { success: true }, error: null });
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
     });
 
     const renderer = await renderHook({
@@ -389,8 +370,8 @@ describe('useRealtimeChat', () => {
     await act(async () => renderer.unmount());
   });
 
-  it('appends a new row received via postgres_changes, decrypting it and de-duping by id', async () => {
-    mockDecryptChatMessage.mockReturnValue('Incoming live message');
+  it('surfaces chat-key API authentication failures instead of showing a missing peer key', async () => {
+    mockFetchParticipantPublicKey.mockRejectedValue(new Error('Unauthorized'));
 
     const renderer = await renderHook({
       meetingId: 'meeting-1',
@@ -400,40 +381,20 @@ describe('useRealtimeChat', () => {
       otherParticipantId: 'other-user',
     });
 
-    expect(latest!.messages).toHaveLength(0);
-
-    await act(async () => {
-      latestChannelHandlers['INSERT']?.({
-        new: { id: 'm2', sender_id: 'other-user', ciphertext: 'cc', nonce: 'dd', message_type: 'text', created_at: '2026-08-05T10:05:00Z' },
-      });
-      await flushPromises();
-    });
-
-    expect(latest!.messages).toEqual([
-      expect.objectContaining({ id: 'm2', content: 'Incoming live message' }),
-    ]);
-
-    // A duplicate insert of the same id (e.g. an echo of our own optimistic
-    // send) must not produce a second entry.
-    await act(async () => {
-      latestChannelHandlers['INSERT']?.({
-        new: { id: 'm2', sender_id: 'other-user', ciphertext: 'cc', nonce: 'dd', message_type: 'text', created_at: '2026-08-05T10:05:00Z' },
-      });
-      await flushPromises();
-    });
-    expect(latest!.messages).toHaveLength(1);
+    expect(latest!.error).toBe('Unauthorized');
+    expect(latest!.keysReady).toBe(false);
 
     await act(async () => renderer.unmount());
   });
 
-  it('refreshes immediately when the peer broadcasts that a persisted message is available', async () => {
-    mockDecryptChatMessage.mockReturnValue('Delivered through broadcast refresh');
+  it('reconciles incoming history through the authenticated app API without Realtime broadcast', async () => {
+    mockDecryptChatMessage.mockReturnValue('Delivered through authenticated history');
     let historyRows: any[] = [];
-    mockRpc.mockImplementation((fn: string) => {
-      if (fn === 'get_meeting_chat_messages') {
-        return Promise.resolve({ data: { success: true, messages: historyRows }, error: null });
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') {
+        return { success: true, data: { data: { success: true, messages: historyRows } } };
       }
-      return Promise.resolve({ data: { success: true }, error: null });
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
     });
 
     const renderer = await renderHook({
@@ -445,36 +406,39 @@ describe('useRealtimeChat', () => {
     });
 
     historyRows = [
-      { id: 'broadcast-1', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:15:00Z' },
+      { id: 'poll-1', sender_id: 'other-user', ciphertext: 'aa', nonce: 'bb', message_type: 'text', created_at: '2026-08-05T10:15:00Z' },
     ];
     await act(async () => {
-      latestChannelHandlers['meeting-chat-message-available']?.({ payload: { meetingId: 'meeting-1', messageId: 'broadcast-1' } });
+      jest.advanceTimersByTime(5000);
       await flushPromises();
     });
 
     expect(latest!.messages).toEqual([
-      expect.objectContaining({ id: 'broadcast-1', content: 'Delivered through broadcast refresh' }),
+      expect.objectContaining({ id: 'poll-1', content: 'Delivered through authenticated history' }),
     ]);
+    expect(mockApiRequest).toHaveBeenCalledWith('meetings/chat', expect.objectContaining({
+      method: 'GET',
+      params: { meetingId: 'meeting-1', kind: 'messages' },
+      skipEventSegment: true,
+    }));
     await act(async () => renderer.unmount());
   });
 
-  it('sends a message: encrypts, persists via RPC, then optimistically appends the plaintext', async () => {
+  it('sends encrypted content through the authenticated API then appends plaintext optimistically', async () => {
     mockEncryptChatMessage.mockReturnValue({ ciphertext: 'ee', nonce: 'ff' });
-    mockRpc.mockImplementation((fn: string, args: any) => {
-      if (fn === 'get_meeting_chat_messages') {
-        return Promise.resolve({ data: { success: true, messages: [] }, error: null });
-      }
-      if (fn === 'send_meeting_chat_message') {
-        expect(args).toEqual({
-          p_meeting_id: 'meeting-1',
-          p_sender_id: 'my-user-id',
-          p_ciphertext: 'ee',
-          p_nonce: 'ff',
-          p_message_type: 'text',
+    mockApiRequest.mockImplementation(async (_path: string, options: any) => {
+      if (options.method === 'GET') return { success: true, data: { data: { success: true, messages: [] } } };
+      if (options.body?.action === 'send') {
+        expect(options.body).toEqual({
+          action: 'send',
+          meetingId: 'meeting-1',
+          ciphertext: 'ee',
+          nonce: 'ff',
+          messageType: 'text',
         });
-        return Promise.resolve({ data: { success: true, id: 'm3', created_at: '2026-08-05T10:10:00Z' }, error: null });
+        return { success: true, data: { data: { success: true, id: 'm3', created_at: '2026-08-05T10:10:00Z' } } };
       }
-      return Promise.resolve({ data: { success: true }, error: null });
+      return { success: true, data: { data: { success: true, otherLastSeenAt: null } } };
     });
 
     const renderer = await renderHook({

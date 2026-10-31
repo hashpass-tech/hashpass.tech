@@ -4,24 +4,15 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
-const mockFrom = jest.fn();
-const mockRpc = jest.fn();
+const mockApiRequest = jest.fn();
 const mockShowError = jest.fn();
-const mockMeeting = {
-  id: 'meeting-1',
-  speaker_id: 'speaker-profile-1',
-  requester_id: 'requester-1',
-  requester_name: 'Requester',
-  speaker_name: 'Speaker',
-  status: 'confirmed',
-  scheduled_at: '2026-10-31T10:00:00Z',
-};
 const mockSpeaker = {
   user_id: 'speaker-1',
   name: 'Speaker profile name',
   imageurl: 'https://cdn.example.com/speaker.png',
 };
 let mockDbUserId = 'requester-1';
+let mockParticipantData: any;
 
 jest.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
@@ -64,26 +55,13 @@ jest.mock('../../contexts/ToastContext', () => ({
   useToastHelpers: () => ({ showError: mockShowError }),
 }));
 
-jest.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: (...args: unknown[]) => mockFrom(...args),
-    rpc: (...args: unknown[]) => mockRpc(...args),
-  },
+jest.mock('../../lib/api-client', () => ({
+  apiClient: { request: (...args: unknown[]) => mockApiRequest(...args) },
 }));
 
 jest.mock('../../components/RealtimeChat', () => 'RealtimeChat');
 
 import MeetingChat from '../../components/MeetingChat';
-
-const makeQuery = () => {
-  const query: Record<string, any> = {
-    select: jest.fn(() => query),
-    eq: jest.fn(() => query),
-    single: jest.fn(async () => ({ data: mockMeeting, error: null })),
-    maybeSingle: jest.fn(async () => ({ data: mockSpeaker, error: null })),
-  };
-  return query;
-};
 
 async function renderMeetingChat() {
   let view!: TestRenderer.ReactTestRenderer;
@@ -97,19 +75,26 @@ async function renderMeetingChat() {
 
 beforeEach(() => {
   mockDbUserId = 'requester-1';
-  mockFrom.mockReset().mockImplementation(() => makeQuery());
-  mockRpc.mockReset().mockImplementation(async (functionName: string) => {
-    if (functionName === 'get_meeting_chat_participant') {
-      return { data: { success: true, name: null, avatar_url: null }, error: null };
-    }
-    return { data: { success: true }, error: null };
-  });
+  mockParticipantData = {
+    success: true,
+    otherParticipant: { id: 'speaker-1', name: 'Speaker', avatar: mockSpeaker.imageurl },
+    currentParticipant: null,
+  };
+  mockApiRequest.mockReset().mockImplementation(async () => ({
+    success: true,
+    data: { data: mockParticipantData },
+  }));
 });
 
-it('passes the canonical speaker photo to requester-side chat if profile lookup omits it', async () => {
+it('loads the canonical speaker profile through the authenticated chat API', async () => {
   const view = await renderMeetingChat();
 
   const chat = view.root.findByType('RealtimeChat' as any);
+  expect(mockApiRequest).toHaveBeenCalledWith('meetings/chat', expect.objectContaining({
+    method: 'GET',
+    params: { meetingId: 'meeting-1', kind: 'participants' },
+    skipEventSegment: true,
+  }));
   expect(chat.props.otherParticipantId).toBe('speaker-1');
   expect(chat.props.otherParticipantAvatar).toBe(mockSpeaker.imageurl);
   expect(chat.props.otherParticipantName).toBe('Speaker');
@@ -118,14 +103,13 @@ it('passes the canonical speaker photo to requester-side chat if profile lookup 
   await act(async () => view.unmount());
 });
 
-it('uses the speaker profile photo for the speaker’s own messages and the requester profile for the peer', async () => {
+it('uses the speaker profile for the speaker and the requester profile for the peer', async () => {
   mockDbUserId = 'speaker-1';
-  mockRpc.mockImplementation(async (functionName: string) => {
-    if (functionName === 'get_meeting_chat_participant') {
-      return { data: { success: true, name: 'Requester profile', avatar_url: 'https://cdn.example.com/requester.png' }, error: null };
-    }
-    return { data: { success: true }, error: null };
-  });
+  mockParticipantData = {
+    success: true,
+    otherParticipant: { id: 'requester-1', name: 'Requester profile', avatar: 'https://cdn.example.com/requester.png' },
+    currentParticipant: { name: mockSpeaker.name, avatar: mockSpeaker.imageurl },
+  };
 
   const view = await renderMeetingChat();
 
@@ -139,22 +123,18 @@ it('uses the speaker profile photo for the speaker’s own messages and the requ
 });
 
 it('clears the peer when the speaker profile has no linked chat user', async () => {
-  mockFrom.mockImplementation((table: string) => {
-    const query = makeQuery();
-    if (table === 'bsl_speakers') {
-      query.maybeSingle = jest.fn(async () => ({
-        data: { ...mockSpeaker, user_id: null },
-        error: null,
-      }));
-    }
-    return query;
-  });
+  mockParticipantData = { success: true, otherParticipant: null, currentParticipant: null };
 
   const view = await renderMeetingChat();
 
   const chat = view.root.findByType('RealtimeChat' as any);
   expect(chat.props.otherParticipantId).toBeUndefined();
-  expect(mockRpc).not.toHaveBeenCalledWith('get_meeting_chat_participant', expect.anything());
+  expect(mockApiRequest).toHaveBeenCalledTimes(1);
 
   await act(async () => view.unmount());
 });
+
+/*
+ * The app API resolves speaker and attendee profile fields server-side. This
+ * matters for Better Auth sessions that do not carry a Supabase browser JWT.
+ */

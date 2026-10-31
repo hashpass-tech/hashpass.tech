@@ -1,7 +1,5 @@
-import { supabase } from '../lib/supabase';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { memoryManager } from '@hashpass/utils';
+import { apiClient } from '../lib/api-client';
 import {
   ensureChatKeyPair,
   loadChatKeyPair,
@@ -18,13 +16,11 @@ import {
 
 interface UseRealtimeChatProps {
   meetingId: string;
-  /** Presence-only broadcast channel name -- kept separate from the
-   * DB-backed message flow below, since online/offline presence is
-   * genuinely ephemeral and has no reason to be persisted. */
+  /** Legacy room label. Authenticated chat requests are scoped by meetingId. */
   roomName: string;
   username: string;
-  /** Real Supabase auth uuid (dbUserId), required for encryption and every
-   * chat RPC -- never Better Auth's own user.id. */
+  /** Real Supabase auth UUID (dbUserId), used for local key storage and the
+   * authenticated app API -- never Better Auth's own user.id. */
   userId: string;
   otherParticipantId?: string;
 }
@@ -39,50 +35,55 @@ export interface ChatMessage {
   };
   createdAt: string;
   messageType?: 'text' | 'system' | 'meeting_update';
-  /** True when authentication failed while decrypting this row, usually
+  /** True when the current key pair could not authenticate this row, usually
    * because a key changed or the stored ciphertext/nonce was damaged. */
   decryptionFailed?: boolean;
 }
 
-const EVENT_PRESENCE_TYPE = 'presence';
-const EVENT_MESSAGE_AVAILABLE = 'meeting-chat-message-available';
 const PRESENCE_INTERVAL = 30000; // 30 seconds
 
-export function useRealtimeChat({ meetingId, roomName, username, userId, otherParticipantId }: UseRealtimeChatProps) {
+export function useRealtimeChat({ meetingId, username, userId, otherParticipantId }: UseRealtimeChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isMessageChannelConnected, setIsMessageChannelConnected] = useState(false);
   const [presence, setPresence] = useState<{ [userId: string]: { isOnline: boolean; lastSeen: Date } }>({});
   const [keysReady, setKeysReady] = useState(false);
   const [otherKeyMissing, setOtherKeyMissing] = useState(false);
   const [keyMismatch, setKeyMismatch] = useState(false);
+  const [keyBackupMissing, setKeyBackupMissing] = useState(false);
   // True when the device has no local private key but a server-side encrypted
   // backup exists -- the UI should prompt the user to enter their backup
   // password to restore chat history before proceeding.
   const [needsKeyRestore, setNeedsKeyRestore] = useState(false);
 
   const myPrivateKeyRef = useRef<Uint8Array | null>(null);
+  const privateKeyOwnerRef = useRef<string | null>(null);
   const otherPublicKeyRef = useRef<Uint8Array | null>(null);
-  const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const otherPublicKeyOwnerRef = useRef<string | null>(null);
   const refreshMessagesRef = useRef<() => void>(() => undefined);
+  const keySetupGenerationRef = useRef(0);
 
   const loadOtherParticipantKey = useCallback(async () => {
     if (otherParticipantId) {
+      otherPublicKeyRef.current = null;
+      otherPublicKeyOwnerRef.current = otherParticipantId;
       const theirKey = await fetchParticipantPublicKey(otherParticipantId);
+      if (otherPublicKeyOwnerRef.current !== otherParticipantId) return;
       otherPublicKeyRef.current = theirKey;
       setOtherKeyMissing(!theirKey);
     } else {
+      otherPublicKeyRef.current = null;
+      otherPublicKeyOwnerRef.current = null;
       setOtherKeyMissing(true);
     }
   }, [otherParticipantId]);
 
   const decryptRow = useCallback((row: any): ChatMessage => {
-    const priv = myPrivateKeyRef.current;
-    const otherPub = otherPublicKeyRef.current;
+    const priv = privateKeyOwnerRef.current === userId ? myPrivateKeyRef.current : null;
+    const otherPub = otherPublicKeyOwnerRef.current === otherParticipantId
+      ? otherPublicKeyRef.current
+      : null;
     const content = priv && otherPub
       ? decryptChatMessage({ ciphertext: row.ciphertext, nonce: row.nonce }, priv, otherPub)
       : null;
@@ -95,7 +96,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
       messageType: row.message_type || 'text',
       decryptionFailed: content === null,
     };
-  }, [userId, username]);
+  }, [userId, username, otherParticipantId]);
 
   // --- Key setup: my own device keypair (generated on first use) plus the
   // other participant's published public key. Sending requires both; the
@@ -103,54 +104,75 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
   // opened chat on any device yet. ---
   const setupKeys = useCallback(async () => {
     if (!userId) return;
+    const setupGeneration = keySetupGenerationRef.current;
+    const isCurrentSetup = () => keySetupGenerationRef.current === setupGeneration;
+    let backupChecked = false;
+    let hasBackup = false;
+    const checkBackup = async () => {
+      const backup = await hasChatKeyBackup(userId);
+      if (!isCurrentSetup()) return false;
+      if (backup.error) {
+        throw new Error(`Failed to check for chat key backup: ${backup.error}`);
+      }
+      backupChecked = true;
+      hasBackup = backup.hasBackup;
+      setKeyBackupMissing(!backup.hasBackup);
+      return backup.hasBackup;
+    };
+
     try {
-      let privateKey = myPrivateKeyRef.current;
+      let privateKey = privateKeyOwnerRef.current === userId ? myPrivateKeyRef.current : null;
       if (!privateKey) {
         privateKey = await loadChatKeyPair(userId);
+        if (!isCurrentSetup()) return;
       }
 
       if (!privateKey) {
         // Check for the backup before generating/publishing a replacement key.
-        // The publish RPC deliberately clears old backups after key rotation.
-        const backup = await hasChatKeyBackup(userId);
-        if (backup.error) {
-          throw new Error(`Failed to check for chat key backup: ${backup.error}`);
-        }
-        if (backup.hasBackup) {
-          setNeedsKeyRestore(true);
-          setLoading(false);
-          return;
-        }
+        // The server refuses key rotation because existing ciphertext depends
+        // on the currently registered key.
+        await checkBackup();
+        if (!isCurrentSetup()) return;
 
         // A published key with no matching local private key means this
         // account has already used chat on another device or lost local
         // storage. Never overwrite that key automatically: doing so would
         // make existing ciphertext impossible to recover on this device.
         const publishedOwnKey = await fetchOwnChatPublicKey(userId);
+        if (!isCurrentSetup()) return;
+        if (hasBackup) {
+          setKeyMismatch(true);
+          setNeedsKeyRestore(true);
+          setLoading(false);
+          return;
+        }
         if (publishedOwnKey) {
           setKeyMismatch(true);
           await loadOtherParticipantKey();
+          if (!isCurrentSetup()) return;
           setKeysReady(true);
+          setLoading(false);
           return;
         }
 
         privateKey = await ensureChatKeyPair(userId);
+        if (!isCurrentSetup()) return;
       }
       myPrivateKeyRef.current = privateKey;
+      privateKeyOwnerRef.current = userId;
 
       const publishedOwnKey = await fetchOwnChatPublicKey(userId);
+      if (!isCurrentSetup()) return;
       if (!publishedOwnKey) {
         // The local key may predate server registration. Re-publish this same
         // key so the peer can derive the existing conversation secret.
         await publishChatPublicKey(privateKey);
+        if (!isCurrentSetup()) return;
         setKeyMismatch(false);
       } else if (!doesChatPrivateKeyMatchPublicKey(privateKey, publishedOwnKey)) {
         setKeyMismatch(true);
-        const backup = await hasChatKeyBackup(userId);
-        if (backup.error) {
-          throw new Error(`Failed to check for chat key backup: ${backup.error}`);
-        }
-        if (backup.hasBackup) {
+        if (await checkBackup()) {
+          if (!isCurrentSetup()) return;
           setNeedsKeyRestore(true);
           setLoading(false);
           return;
@@ -159,14 +181,42 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
         setKeyMismatch(false);
       }
 
+      if (!backupChecked) await checkBackup();
+      if (!isCurrentSetup()) return;
+
       await loadOtherParticipantKey();
+      if (!isCurrentSetup()) return;
       setKeysReady(true);
     } catch (err) {
+      if (!isCurrentSetup()) return;
       console.error('[useRealtimeChat] Failed to set up chat keys:', err);
       setError(err instanceof Error ? err.message : 'Failed to set up secure chat');
       setLoading(false);
     }
   }, [userId, loadOtherParticipantKey]);
+
+  useEffect(() => {
+    keySetupGenerationRef.current += 1;
+    myPrivateKeyRef.current = null;
+    privateKeyOwnerRef.current = null;
+    otherPublicKeyRef.current = null;
+    otherPublicKeyOwnerRef.current = null;
+    setMessages([]);
+    setPresence({});
+    setKeysReady(false);
+    setOtherKeyMissing(true);
+    setKeyMismatch(false);
+    setNeedsKeyRestore(false);
+    setKeyBackupMissing(false);
+    setError(null);
+    setIsConnected(false);
+    setLoading(true);
+  }, [userId, otherParticipantId]);
+
+  useEffect(() => {
+    setMessages([]);
+    setPresence({});
+  }, [meetingId]);
 
   // Restore the private key from a server-side encrypted backup. Call this
   // when needsKeyRestore is true and the user provides their backup password.
@@ -183,9 +233,11 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     // Reload the private key from storage now that it's been restored.
     const restoredKey = await ensureChatKeyPair(userId);
     myPrivateKeyRef.current = restoredKey;
+    privateKeyOwnerRef.current = userId;
     await loadOtherParticipantKey();
     setNeedsKeyRestore(false);
     setKeyMismatch(false);
+    setKeyBackupMissing(false);
     setKeysReady(true);
 
     // Refresh messages so they can be decrypted with the restored key
@@ -203,6 +255,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
       try {
         const newKey = await ensureChatKeyPair(userId);
         myPrivateKeyRef.current = newKey;
+        privateKeyOwnerRef.current = userId;
         await loadOtherParticipantKey();
         setNeedsKeyRestore(false);
         setKeysReady(true);
@@ -218,18 +271,18 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
   // backup for future device restores.
   const createKeyBackup = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
     if (!userId) return { success: false, error: 'no_user' };
-    return backupChatKeyPair(userId, password);
+    const result = await backupChatKeyPair(userId, password);
+    if (result.success) setKeyBackupMissing(false);
+    return result;
   }, [userId]);
 
   useEffect(() => {
     setupKeys();
   }, [setupKeys]);
 
-  // --- Message history + realtime delivery, both backed by the same
-  // meeting_chat_messages table. A message is only ever visible here once
-  // it has actually persisted -- this is what makes delivery asynchronous
-  // (a reconnecting client just re-fetches) rather than requiring both
-  // participants to be connected at the same instant. ---
+  // Message history and sends cross the authenticated app API. The browser
+  // never calls the SECURITY DEFINER chat RPCs or publishes unauthenticated
+  // Realtime broadcasts; the API returns ciphertext and decryption stays local.
   useEffect(() => {
     if (!keysReady || !meetingId || !userId) return;
 
@@ -239,18 +292,23 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
       try {
         if (showLoading) setLoading(true);
         setError(null);
-        const { data, error: rpcError } = await supabase.rpc('get_meeting_chat_messages', {
-          p_meeting_id: meetingId,
-          p_user_id: userId,
+        const response = await apiClient.request('meetings/chat', {
+          method: 'GET',
+          params: { meetingId, kind: 'messages' },
+          skipEventSegment: true,
+          retries: 0,
         });
-        if (rpcError) throw new Error(rpcError.message);
+        if (!response.success) throw new Error(response.error || 'Failed to load messages');
+        const data = response.data?.data;
         if (!data?.success) throw new Error(data?.error || 'Failed to load messages');
         if (cancelled) return;
         const rows = (data.messages || []) as any[];
         setMessages(rows.map(decryptRow));
+        setIsConnected(true);
       } catch (err) {
         if (!cancelled) {
           console.error('[useRealtimeChat] Failed to load chat history:', err);
+          setIsConnected(false);
           setError(err instanceof Error ? err.message : 'Failed to load messages');
         }
       } finally {
@@ -263,122 +321,60 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     };
 
     void loadHistory(true);
-
-    const dbChannel = supabase
-      .channel(`meeting_chat_messages:${meetingId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'meeting_chat_messages', filter: `meeting_id=eq.${meetingId}` },
-        (payload: any) => {
-          const decrypted = decryptRow(payload.new);
-          setMessages((current) => (current.some((m) => m.id === decrypted.id) ? current : [...current, decrypted]));
-        }
-      )
-      .subscribe((status: string) => {
-        if (cancelled) return;
-        setIsMessageChannelConnected(status === 'SUBSCRIBED');
-        if (status === 'SUBSCRIBED') void loadHistory();
-      });
-
-    // Reconcile in the background as a safety net for an interrupted socket
-    // or a local Supabase instance that is applying its realtime publication.
-    // Normal delivery is still the immediate postgres_changes subscription.
+    // Poll through the authenticated API so Better Auth sessions do not rely
+    // on an unrelated Supabase anon key or unauthenticated Realtime channel.
     const reconciliationInterval = setInterval(() => {
       void loadHistory();
-    }, 8000);
+    }, 5000);
 
     return () => {
       cancelled = true;
       clearInterval(reconciliationInterval);
       refreshMessagesRef.current = () => undefined;
-      setIsMessageChannelConnected(false);
-      supabase.removeChannel(dbChannel);
     };
   }, [keysReady, meetingId, userId, decryptRow]);
 
-  // --- Presence: unchanged ephemeral broadcast, deliberately not persisted. ---
-  useEffect(() => {
-    const newChannel = supabase.channel(roomName);
-    presenceChannelRef.current = newChannel;
-
-    if (userId) {
-      const subscriptionId = `chat-presence-${roomName}-${userId}`;
-      memoryManager.registerSubscription(subscriptionId, () => {
-        if (presenceChannelRef.current) {
-          supabase.removeChannel(presenceChannelRef.current);
-          presenceChannelRef.current = null;
-        }
+  // Presence is authenticated and backed by chat_last_seen rather than a
+  // browser-originated Realtime broadcast. The app API verifies both users
+  // belong to this meeting before returning the other participant's status.
+  const refreshPresence = useCallback(async () => {
+    if (!meetingId || !userId) return;
+    try {
+      const response = await apiClient.request('meetings/chat', {
+        method: 'POST',
+        body: { action: 'touch', meetingId, otherParticipantId },
+        skipEventSegment: true,
+        retries: 0,
       });
+      if (!response.success || !response.data?.data?.success) return;
+      const lastSeenAt = response.data.data.otherLastSeenAt;
+      if (!otherParticipantId || !lastSeenAt) return;
+      const lastSeen = new Date(lastSeenAt);
+      setPresence((current) => ({
+        ...current,
+        [otherParticipantId]: {
+          isOnline: Date.now() - lastSeen.getTime() < 60000,
+          lastSeen,
+        },
+      }));
+    } catch {
+      // Message history is the connection indicator; presence is best effort.
     }
+  }, [meetingId, userId, otherParticipantId]);
 
-    const sendPresenceUpdate = (isOnline: boolean) => {
-      if (!newChannel || !userId) return;
-      newChannel.send({
-        type: 'broadcast',
-        event: EVENT_PRESENCE_TYPE,
-        payload: { userId, username, isOnline, lastSeen: new Date().toISOString() },
-      });
-    };
-
-    newChannel
-      .on('broadcast', { event: EVENT_PRESENCE_TYPE }, (payload: { payload: unknown }) => {
-        const presenceData = payload.payload as { userId: string; isOnline: boolean; lastSeen: string };
-        setPresence((current) => ({
-          ...current,
-          [presenceData.userId]: { isOnline: presenceData.isOnline, lastSeen: new Date(presenceData.lastSeen) },
-        }));
-      })
-      // Postgres Changes remains the source of truth, but local Supabase
-      // instances can subscribe successfully before their publication is
-      // active. This broadcast is sent only after the message RPC persisted
-      // a row, so it gives the peer an immediate, encrypted-history refresh
-      // without exposing message content in the realtime payload.
-      .on('broadcast', { event: EVENT_MESSAGE_AVAILABLE }, () => {
-        refreshMessagesRef.current();
-      })
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          setIsConnected(true);
-          if (userId) {
-            sendPresenceUpdate(true);
-            presenceIntervalRef.current = setInterval(() => sendPresenceUpdate(true), PRESENCE_INTERVAL);
-          }
-        } else {
-          setIsConnected(false);
-          if (presenceIntervalRef.current) {
-            clearInterval(presenceIntervalRef.current);
-            presenceIntervalRef.current = null;
-          }
-          if (userId) sendPresenceUpdate(false);
-        }
-      });
-
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
-        if (userId) sendPresenceUpdate(true);
-      } else if (nextAppState.match(/inactive|background/)) {
-        if (userId) sendPresenceUpdate(false);
-      }
-      appStateRef.current = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-      if (presenceIntervalRef.current) {
-        clearInterval(presenceIntervalRef.current);
-        presenceIntervalRef.current = null;
-      }
-      if (userId) sendPresenceUpdate(false);
-      supabase.removeChannel(newChannel);
-      presenceChannelRef.current = null;
-      if (userId) memoryManager.unregisterSubscription(`chat-presence-${roomName}-${userId}`);
-    };
-  }, [roomName, username, userId]);
+  useEffect(() => {
+    if (!keysReady || !meetingId || !userId) return;
+    void refreshPresence();
+    const interval = setInterval(() => void refreshPresence(), PRESENCE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [keysReady, meetingId, userId, refreshPresence]);
 
   const sendMessage = useCallback(
     async (content: string, messageType: 'text' | 'system' | 'meeting_update' = 'text') => {
-      const priv = myPrivateKeyRef.current;
-      const otherPub = otherPublicKeyRef.current;
+      const priv = privateKeyOwnerRef.current === userId ? myPrivateKeyRef.current : null;
+      const otherPub = otherPublicKeyOwnerRef.current === otherParticipantId
+        ? otherPublicKeyRef.current
+        : null;
       if (keyMismatch) {
         throw new Error('Restore the chat key backup before sending messages from this device');
       }
@@ -390,6 +386,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
           const theirKey = await fetchParticipantPublicKey(otherParticipantId);
           if (theirKey) {
             otherPublicKeyRef.current = theirKey;
+            otherPublicKeyOwnerRef.current = otherParticipantId;
             setOtherKeyMissing(false);
           } else {
             throw new Error('The other participant has not set up secure chat yet');
@@ -401,34 +398,18 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
 
       const { ciphertext, nonce } = encryptChatMessage(content, priv, otherPublicKeyRef.current!);
 
-      const { data, error: rpcError } = await supabase.rpc('send_meeting_chat_message', {
-        p_meeting_id: meetingId,
-        p_sender_id: userId,
-        p_ciphertext: ciphertext,
-        p_nonce: nonce,
-        p_message_type: messageType,
+      const response = await apiClient.request('meetings/chat', {
+        method: 'POST',
+        body: { action: 'send', meetingId, ciphertext, nonce, messageType },
+        skipEventSegment: true,
+        retries: 0,
       });
-      if (rpcError) throw new Error(rpcError.message);
+      if (!response.success) throw new Error(response.error || 'Failed to send message');
+      const data = response.data?.data;
       if (!data?.success) throw new Error(data?.error || 'Failed to send message');
 
-      // Notify the other open chat immediately. The recipient fetches the
-      // persisted ciphertext through its authorized history RPC; no plaintext
-      // or encryption material crosses the broadcast channel.
-      try {
-        await presenceChannelRef.current?.send({
-          type: 'broadcast',
-          event: EVENT_MESSAGE_AVAILABLE,
-          payload: { meetingId, messageId: data.id },
-        });
-      } catch (broadcastError) {
-        // Persistence already succeeded; postgres_changes and the bounded
-        // reconciliation refresh will still deliver the message.
-        console.warn('[useRealtimeChat] Message broadcast failed:', broadcastError);
-      }
-
-      // Optimistic append -- the sender already knows the plaintext, no
-      // need to wait for the realtime echo (which is de-duped by id above
-      // if it does arrive).
+      // Optimistic append -- the sender already knows the plaintext and the
+      // next authenticated history refresh de-dupes by the persisted ID.
       setMessages((current) => (current.some((m) => m.id === data.id) ? current : [
         ...current,
         {
@@ -450,7 +431,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
   return {
     messages,
     sendMessage,
-    isConnected: isConnected && isMessageChannelConnected,
+    isConnected,
     clearMessages,
     presence,
     loading,
@@ -458,6 +439,7 @@ export function useRealtimeChat({ meetingId, roomName, username, userId, otherPa
     keysReady,
     otherKeyMissing,
     keyMismatch,
+    keyBackupMissing,
     needsKeyRestore,
     restoreKeyFromBackup,
     skipKeyRestore,

@@ -91,6 +91,10 @@ const meetingChatRealtimeMigrationPath = path.join(
   root,
   'db/migrations/V054__meeting_chat_realtime_and_participant_profiles.sql',
 );
+const meetingChatApiBoundaryMigrationPath = path.join(
+  root,
+  'db/migrations/V161__authenticate_meeting_chat_api_access.sql',
+);
 const eventAuthAlliesMigrationPath = path.join(
   root,
   'db/migrations/V083__event_auth_allies.sql',
@@ -626,10 +630,29 @@ describe('encrypted meeting chat realtime contract', () => {
     expect(config.groups['meeting-chat-e2e']).toContain(
       'db/migrations/V160__preserve_meeting_chat_participant_profiles.sql',
     );
+    expect(config.groups['meeting-chat-e2e']).toContain(
+      'db/migrations/V161__authenticate_meeting_chat_api_access.sql',
+    );
     expect(migration).toMatch(/ALTER PUBLICATION supabase_realtime ADD TABLE public\.meeting_chat_messages/i);
     expect(migration).toMatch(/CREATE OR REPLACE FUNCTION public\.get_meeting_chat_participant/i);
     expect(migration).toMatch(/profile\.avatar_url/i);
     expect(migration).toMatch(/speaker\.imageurl/i);
+  });
+
+  it('limits chat SECURITY DEFINER RPCs to the authenticated API and rejects key rotation', () => {
+    const migration = fs.readFileSync(meetingChatApiBoundaryMigrationPath, 'utf8');
+
+    expect(migration).toMatch(/REVOKE ALL PRIVILEGES ON TABLE public\.meeting_chat_messages, public\.chat_last_seen, public\.user_chat_keys\s+FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/GRANT ALL PRIVILEGES ON TABLE public\.meeting_chat_messages, public\.chat_last_seen, public\.user_chat_keys\s+TO service_role/i);
+    expect(migration).toMatch(/REVOKE EXECUTE ON FUNCTION public\.get_meeting_chat_messages\(uuid, uuid\)\s+FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/REVOKE EXECUTE ON FUNCTION public\.send_meeting_chat_message\(uuid, uuid, text, text, text\)\s+FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/REVOKE EXECUTE ON FUNCTION public\.get_meeting_chat_participant\(uuid, uuid\)\s+FROM PUBLIC, anon, authenticated/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_meeting_chat_messages\(uuid, uuid\)\s+TO service_role/i);
+    expect(migration).toMatch(/GRANT EXECUTE ON FUNCTION public\.get_meeting_chat_participant\(uuid, uuid\)\s+TO service_role/i);
+    expect(migration).toMatch(/coalesce\(auth\.role\(\), ''\) <> 'service_role'/i);
+    expect(migration).toMatch(/WHERE public\.user_chat_keys\.public_key = EXCLUDED\.public_key/i);
+    expect(migration).toMatch(/key_already_registered/i);
+    expect(migration).not.toMatch(/encrypted_private_key_backup\s*=\s*NULL/i);
   });
 
   it('preserves speaker profile data when participant fallback queries find no user row', () => {
