@@ -388,7 +388,6 @@ export default function NotificationsScreen() {
             </View>
             <Text
               style={[styles.notificationMessage, isUnread ? styles.unreadMessage : styles.readMessage]}
-              numberOfLines={3}
             >
               {translatedNotification.message}
             </Text>
