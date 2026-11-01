@@ -7,6 +7,7 @@ import {
   LayoutAnimation,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -432,9 +433,10 @@ export function SegmentedTabs<T extends string = string>({
   accentColor,
   surfaceColor,
   fullWidth = false,
+  scrollable = false,
   accessibilityLabel,
 }: Themed & {
-  tabs: ReadonlyArray<SegmentedTab<T>>;
+  tabs: readonly SegmentedTab<T>[];
   value: T;
   onChange: (id: T) => void;
   /** Selected segment fill; defaults to the palette accent. */
@@ -443,18 +445,21 @@ export function SegmentedTabs<T extends string = string>({
   surfaceColor?: string;
   /** Stretch the track and share the width equally between segments. */
   fullWidth?: boolean;
+  /** Keep every tab on one line and allow horizontal scrolling when needed. */
+  scrollable?: boolean;
   accessibilityLabel?: string;
 }) {
   const palette = uiPalette(mode);
   const accent = accentColor || palette.accent;
-  return (
+  const track = (
     <View
       accessibilityRole="tablist"
       accessibilityLabel={accessibilityLabel}
       style={[
         styles.segmentTrack,
+        scrollable ? styles.segmentTrackScrollable : null,
         { backgroundColor: surfaceColor || palette.surface },
-        fullWidth ? styles.segmentTrackFull : null,
+        fullWidth && !scrollable ? styles.segmentTrackFull : null,
       ]}
     >
       {tabs.map((tab) => {
@@ -467,14 +472,19 @@ export function SegmentedTabs<T extends string = string>({
             onPress={() => onChange(tab.id)}
             style={({ pressed }) => [
               styles.segment,
-              fullWidth ? styles.segmentFull : null,
+              fullWidth && !scrollable ? styles.segmentFull : null,
+              scrollable ? styles.segmentScrollable : null,
               selected ? { backgroundColor: accent } : null,
               { opacity: pressed ? 0.8 : 1 },
             ]}
           >
             <Text
               numberOfLines={1}
-              style={[styles.segmentLabel, { color: selected ? palette.onAccent : palette.muted }]}
+              style={[
+                styles.segmentLabel,
+                scrollable ? styles.segmentLabelScrollable : null,
+                { color: selected ? palette.onAccent : palette.muted },
+              ]}
             >
               {tab.label}
             </Text>
@@ -496,6 +506,22 @@ export function SegmentedTabs<T extends string = string>({
       })}
     </View>
   );
+
+  if (scrollable) {
+    return (
+      <ScrollView
+        horizontal
+        style={styles.segmentScroll}
+        contentContainerStyle={styles.segmentScrollContent}
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {track}
+      </ScrollView>
+    );
+  }
+
+  return track;
 }
 /** Compact account/tool action; consumers supply the shared icon renderer. */
 export type IconButtonProps = Omit<PressableProps, "children"> &
@@ -876,6 +902,10 @@ const styles = StyleSheet.create({
     borderRadius: uiTokens.radius.pill,
   },
   segmentTrackFull: { alignSelf: "stretch", flexWrap: "nowrap" },
+  segmentScroll: { width: "100%" },
+  segmentScrollContent: { alignItems: "center" },
+  segmentTrackScrollable: { flexWrap: "nowrap", minWidth: "100%" },
+  segmentScrollable: { flexShrink: 0 },
   segment: {
     alignItems: "center",
     flexDirection: "row",
@@ -886,6 +916,7 @@ const styles = StyleSheet.create({
   },
   segmentFull: { flex: 1, paddingHorizontal: 8 },
   segmentLabel: { fontSize: uiTokens.type.label, fontWeight: "600" },
+  segmentLabelScrollable: { flexShrink: 0 },
   segmentCount: {
     alignItems: "center",
     borderRadius: uiTokens.radius.pill,

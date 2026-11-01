@@ -314,14 +314,7 @@ export default function RealtimeChat({
                 {message.decryptionFailed ? (
                   <View style={styles.undecryptedMessageContent}>
                     <MaterialIcons name="lock-outline" size={16} color={palette.danger} />
-                    <View style={styles.undecryptedMessageCopy}>
-                      <Text style={styles.undecryptedMessageTitle}>Message could not be decrypted</Text>
-                      <Text style={styles.undecryptedMessageText}>
-                        {keyMismatch
-                          ? 'This device is missing the private key needed to read this message. Restore its encrypted backup or use a device that still has the key.'
-                          : 'A participant’s chat key may have changed, or this message may be damaged.'}
-                      </Text>
-                    </View>
+                    <Text style={styles.undecryptedMessageTitle}>Message unavailable</Text>
                   </View>
                 ) : (
                   <Text style={[
@@ -403,6 +396,8 @@ export default function RealtimeChat({
   const otherParticipantPresence = otherParticipantId ? presence[otherParticipantId] : undefined;
   const lastSeenText = formatLastSeen(otherParticipantPresence?.lastSeen || null);
   const isOtherParticipantOnline = otherParticipantPresence?.isOnline;
+  const hasDecryptionFailures = allMessages.some((message) => message.decryptionFailed);
+  const showKeyFeedback = (keyMismatch && !needsKeyRestore) || hasDecryptionFailures;
 
   return (
     <KeyboardAvoidingView 
@@ -451,26 +446,21 @@ export default function RealtimeChat({
         )}
       </View>
 
-      {allMessages.some((message) => message.decryptionFailed) && (
-        <View style={styles.decryptNotice}>
-          <MaterialIcons name="lock-outline" size={16} color={palette.muted} />
-          <Text style={styles.decryptNoticeText}>
-            {keyMismatch
-              ? 'This device does not have the private key that matches your account. Restore its encrypted backup or use a device that still has the key. Without that key, older messages cannot be decrypted.'
-              : 'Some messages could not be verified with the current chat keys. A participant’s key may have changed, or a stored message may be damaged.'}
-          </Text>
-        </View>
-      )}
-
-      {keyMismatch && !needsKeyRestore && (
-        <View style={styles.keyMismatchBanner}>
-          <View style={styles.keyMismatchCopy}>
-            <MaterialIcons name="vpn-key" size={18} color={palette.danger} />
-            <Text style={styles.keyMismatchText}>
-              This device can’t access the private key registered to your account. Restore its encrypted backup or use a device that still has the key. Sending is paused so messages remain readable.
+      {showKeyFeedback && (
+        <View style={styles.keyFeedbackBanner}>
+          <View style={styles.keyFeedbackCopy}>
+            <MaterialIcons
+              name={keyMismatch ? 'vpn-key' : 'lock-outline'}
+              size={18}
+              color={keyMismatch ? palette.danger : palette.muted}
+            />
+            <Text style={styles.keyFeedbackText}>
+              {keyMismatch
+                ? 'This device can’t access your account’s chat key. Restore its backup to read older messages; sending is paused.'
+                : 'Some messages couldn’t be decrypted. The chat key may have changed or message data may be damaged.'}
             </Text>
           </View>
-          {keyBackupMissing && (
+          {keyMismatch && keyBackupMissing && !needsKeyRestore && (
             <ActionButton
               mode={mode}
               label="Start a new chat key"
@@ -1036,23 +1026,14 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
   },
   undecryptedMessageContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: uiTokens.space.sm,
     maxWidth: 340,
-  },
-  undecryptedMessageCopy: {
-    flex: 1,
   },
   undecryptedMessageTitle: {
     color: palette.text,
     fontSize: uiTokens.type.label,
     fontWeight: '700',
-  },
-  undecryptedMessageText: {
-    color: palette.muted,
-    fontSize: uiTokens.type.caption,
-    lineHeight: 17,
-    marginTop: uiTokens.space.xs,
   },
   systemMessageBubble: {
     backgroundColor: 'transparent',
@@ -1158,40 +1139,25 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     color: palette.muted,
     lineHeight: 17,
   },
-  decryptNotice: {
-    width: '100%',
-    maxWidth: 960,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: uiTokens.space.sm,
-    paddingHorizontal: uiTokens.space.lg,
-    paddingVertical: uiTokens.space.sm,
-  },
-  decryptNoticeText: {
-    flex: 1,
-    color: palette.muted,
-    fontSize: uiTokens.type.caption,
-    lineHeight: 17,
-  },
-  keyMismatchBanner: {
+  keyFeedbackBanner: {
     width: '100%',
     maxWidth: 960,
     alignSelf: 'center',
     alignItems: 'stretch',
     gap: uiTokens.space.sm,
     paddingHorizontal: uiTokens.space.lg,
-    paddingVertical: uiTokens.space.md,
+    paddingVertical: uiTokens.space.sm,
     backgroundColor: palette.accentSoft,
     borderTopWidth: 1,
-    borderTopColor: palette.border,
+    borderBottomWidth: 1,
+    borderColor: palette.border,
   },
-  keyMismatchCopy: {
+  keyFeedbackCopy: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: uiTokens.space.sm,
   },
-  keyMismatchText: {
+  keyFeedbackText: {
     flex: 1,
     color: palette.text,
     fontSize: uiTokens.type.caption,

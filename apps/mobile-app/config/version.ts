@@ -22,22 +22,37 @@ export interface VersionHistory {
 // Current Version Configuration - Auto-synced with package.json
 export const CURRENT_VERSION: VersionInfo = {
   version: packageJson.version, // Single source of truth: package.json
-  buildNumber: 202611010130, // Updated to current timestamp
+  buildNumber: 202611010320, // Updated to current timestamp
   releaseDate: '2026-11-01',
   releaseType: 'stable',
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   features: [
-    // No new features
+    'simplify chat key feedback and inbox UI'
   ],
   bugfixes: [
-    'restore chat after a lost key'
+    // No bugfixes
   ],
   breakingChanges: [],
-  notes: 'restore chat after a lost key'
+  notes: 'simplify chat key feedback and inbox UI'
 };
 
 // Version History
 export const VERSION_HISTORY: VersionHistory = {
+  '1.9.204': {
+    version: '1.9.204',
+    buildNumber: 202611010320,
+    releaseDate: '2026-11-01',
+    releaseType: 'stable',
+    environment: 'development',
+    features: [
+      'simplify chat key feedback and inbox UI'
+    ],
+    bugfixes: [
+      // No bugfixes
+    ],
+    breakingChanges: [],
+    notes: 'simplify chat key feedback and inbox UI'
+  },
   '1.9.203': {
     version: '1.9.203',
     buildNumber: 202611010130,

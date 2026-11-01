@@ -1,3 +1,14 @@
+## [1.9.204](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.203...v1.9.204) (2026-11-01)
+### Released
+- simplify chat key feedback and inbox UI
+
+### Release scope
+- Compared with: `v1.9.203` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+- Shared UI
+
 ## [1.9.203](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.202...v1.9.203) (2026-11-01)
 ### Released
 - restore chat after a lost key
