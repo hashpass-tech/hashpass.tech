@@ -261,6 +261,45 @@ it("passes the server-resolved Supabase identity into encrypted chat", () => {
   act(() => view.unmount());
 });
 
+it("keeps key feedback in one concise banner and shortens undecrypted message rows", () => {
+  const failedMessages = [
+    { id: "encrypted-1", content: "", decryptionFailed: true, user: { id: "peer-1", name: "Peer" }, createdAt: "2026-10-31T10:00:00Z" },
+    { id: "encrypted-2", content: "", decryptionFailed: true, user: { id: "viewer-1", name: "Viewer" }, createdAt: "2026-10-31T10:01:00Z" },
+  ];
+  mockChatState = {
+    ...mockChatState,
+    messages: failedMessages,
+    keyMismatch: true,
+    keyBackupMissing: true,
+    needsKeyRestore: false,
+  };
+  const mismatchView = renderChat();
+  const mismatchTexts = mismatchView.root.findAllByType("Text" as any)
+    .map((node) => node.props.children)
+    .filter((value): value is string => typeof value === "string");
+
+  expect(mismatchTexts.filter((value) => value === "Message unavailable")).toHaveLength(2);
+  expect(mismatchTexts.filter((value) => value.includes("This device can’t access your account’s chat key."))).toHaveLength(1);
+  expect(mismatchTexts.some((value) => value === "Message could not be decrypted")).toBe(false);
+  expect(mismatchTexts.some((value) => value.startsWith("This device does not have the private key"))).toBe(false);
+  expect(mismatchTexts.some((value) => value.startsWith("This device can’t access the private key registered"))).toBe(false);
+  expect(mismatchView.root.findAllByType("ActionButton" as any)
+    .some((button) => button.props.label === "Start a new chat key")).toBe(true);
+  act(() => mismatchView.unmount());
+
+  mockChatState = {
+    ...mockChatState,
+    keyMismatch: false,
+    keyBackupMissing: false,
+  };
+  const genericView = renderChat();
+  const genericTexts = genericView.root.findAllByType("Text" as any)
+    .map((node) => node.props.children)
+    .filter((value): value is string => typeof value === "string");
+  expect(genericTexts.filter((value) => value.includes("Some messages couldn’t be decrypted."))).toHaveLength(1);
+  act(() => genericView.unmount());
+});
+
 it("shows a calm empty state while the conversation has no messages", () => {
   const view = renderChat();
 

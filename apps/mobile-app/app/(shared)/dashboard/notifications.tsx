@@ -6,8 +6,8 @@ import { MaterialIcons } from '../../../lib/vector-icons';
 import DashboardRefreshButton from '../../../components/dashboard/DashboardRefreshButton';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import UnifiedSearchAndFilter from '../../../components/UnifiedSearchAndFilter';
-import { uiTokens } from '@hashpass/ui/tokens';
-import { SegmentedTabs } from '@hashpass/ui/primitives';
+import { uiPalette, uiTokens } from '@hashpass/ui/tokens';
+import { ActionButton, Badge, SegmentedTabs } from '@hashpass/ui/primitives';
 import { useDashboardPageLayout } from '../../../hooks/useDashboardPageLayout';
 import { useTranslation } from '../../../i18n/i18n';
 import { translateNotification } from '../../../lib/notification-translations';
@@ -26,6 +26,8 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { t } = useTranslation('notifications');
+  const mode = isDark ? 'dark' : 'light';
+  const palette = uiPalette(mode);
   const styles = getStyles(isDark, colors, topInset, bottomInset);
   const scrollViewRef = useRef<ScrollView>(null);
   const notificationRefs = useRef<{ [key: string]: View | null }>({});
@@ -33,7 +35,7 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationInboxTab>('all');
   const [filteredNotifications, setFilteredNotifications] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [, setSearchQuery] = useState('');
   const [markingAsRead, setMarkingAsRead] = useState<Set<string>>(new Set());
 
   // Separate the inbox by intent. Messages stay available in All, but their
@@ -235,25 +237,18 @@ export default function NotificationsScreen() {
   };
 
   const getNotificationColor = (type: string, isUrgent: boolean) => {
-    if (isUrgent) return '#FF3B30';
-    
+    if (isUrgent) return palette.danger;
+
     switch (type) {
-      case 'chat_message':
-        return '#5856D6';
-      case 'meeting_request':
-        return '#007AFF';
       case 'meeting_accepted':
-        return '#34A853';
+      case 'business_invite_approved':
+        return palette.success;
       case 'meeting_declined':
-        return '#FF9500';
-      case 'meeting_reminder':
-        return '#5856D6';
-      case 'boost_received':
-        return '#FF2D92';
-      case 'system_alert':
-        return '#8E8E93';
+      case 'meeting_expired':
+      case 'business_invite_rejected':
+        return palette.danger;
       default:
-        return '#007AFF';
+        return palette.accent;
     }
   };
 
@@ -363,100 +358,43 @@ export default function NotificationsScreen() {
     const iconName = getNotificationIcon(notification.type);
     const iconColor = getNotificationColor(notification.type, notification.is_urgent);
     const isUnread = !notification.is_read;
+    const isUpdatingReadState = markingAsRead.has(notification.id);
     // Translate notification to interpolate {speakerName} and {requestName}
     const translatedNotification = translateNotification(notification, t);
 
     return (
-      <View
-        style={[
-          styles.notificationCard,
-          isUnread && styles.unreadNotification,
-          !isUnread && styles.readNotification
-        ]}
-      >
-        {/* Top Right X Button - Only in Archive Tab */}
-        {activeTab === 'archive' && (
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleDeleteNotification(notification);
-            }}
-          >
-            <MaterialIcons name="close" size={20} color={colors.text.secondary} />
-          </TouchableOpacity>
-        )}
-
-        {/* Content */}
+      <View style={styles.notificationCard}>
         <TouchableOpacity
           style={styles.notificationContent}
           onPress={() => handleNotificationPress(notification)}
           activeOpacity={0.7}
         >
-          <View style={[
-            styles.iconContainer, 
-            { backgroundColor: iconColor + '20' },
-            isUnread && styles.unreadIconContainer
-          ]}>
-            <MaterialIcons 
-              name={iconName as any} 
-              size={24} 
-              color={iconColor} 
-            />
-            {isUnread && (
-              <View style={styles.unreadDot} />
-            )}
+          <View style={styles.iconContainer}>
+            <MaterialIcons name={iconName as any} size={20} color={iconColor} />
           </View>
-          
           <View style={styles.notificationText}>
             <View style={styles.notificationHeader}>
-              <Text style={[
-                styles.notificationTitle,
-                isUnread && styles.unreadText,
-                !isUnread && styles.readText
-              ]}>
+              <Text
+                style={[styles.notificationTitle, isUnread ? styles.unreadText : styles.readText]}
+                numberOfLines={2}
+              >
                 {translatedNotification.title}
               </Text>
-              <View style={styles.headerActions}>
-                {notification.is_urgent && (
-                  <View style={styles.urgentBadge}>
-                    <Text style={styles.urgentText}>{t('center.urgent')}</Text>
-                  </View>
-                )}
-                {activeTab !== 'archive' && !markingAsRead.has(notification.id) && (
-                  <TouchableOpacity
-                    style={styles.markReadButtonInline}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleToggleReadStatus(notification);
-                    }}
-                    disabled={markingAsRead.has(notification.id)}
-                  >
-                    <MaterialIcons 
-                      name={notification.is_read ? "mark-email-unread" : "drafts"} 
-                      size={16} 
-                      color="#007AFF" 
-                    />
-                  </TouchableOpacity>
-                )}
-                {activeTab !== 'archive' && markingAsRead.has(notification.id) && (
-                  <View style={styles.markReadButtonInline}>
-                    <MaterialIcons name="hourglass-empty" size={16} color={colors.text.secondary} />
-                  </View>
-                )}
-              </View>
+              {notification.is_urgent && (
+                <Badge mode={mode} tone="neutral" tint={palette.danger} compact>
+                  {t('center.urgent')}
+                </Badge>
+              )}
             </View>
-            
-            <Text style={[
-              styles.notificationMessage,
-              isUnread && styles.unreadMessage,
-              !isUnread && styles.readMessage
-            ]}>
+            <Text
+              style={[styles.notificationMessage, isUnread ? styles.unreadMessage : styles.readMessage]}
+              numberOfLines={3}
+            >
               {translatedNotification.message}
             </Text>
             {notification.type === 'chat_message' && notification.notificationCount > 1 && (
               <View style={styles.conversationSummary}>
-                <MaterialIcons name="chat-bubble-outline" size={14} color={iconColor} />
+                <MaterialIcons name="chat-bubble-outline" size={14} color={palette.accent} />
                 <Text style={styles.conversationSummaryText}>
                   {notification.unreadMessageCount > 0
                     ? `${notification.unreadMessageCount} unread in this conversation`
@@ -464,56 +402,54 @@ export default function NotificationsScreen() {
                 </Text>
               </View>
             )}
-            
-            <Text style={styles.notificationTime}>
-              {formatTimeAgo(notification.created_at)}
-            </Text>
+            <View style={styles.metaRow}>
+              {isUnread && <View style={styles.unreadDot} />}
+              <Text style={styles.notificationTime}>{formatTimeAgo(notification.created_at)}</Text>
+            </View>
           </View>
         </TouchableOpacity>
 
-        {/* Bottom Right Action Buttons - Only in All Tab */}
-        {activeTab !== 'archive' && (
-          <View style={styles.bottomActionButtons}>
-            <TouchableOpacity
-              style={[
-                styles.toggleReadButton,
-                notification.is_read && styles.toggleReadButtonRead
-              ]}
-              onPress={() => handleToggleReadStatus(notification)}
-              disabled={markingAsRead.has(notification.id)}
-            >
-              {markingAsRead.has(notification.id) ? (
-                <MaterialIcons name="hourglass-empty" size={18} color={colors.text.secondary} />
-              ) : notification.is_read ? (
-                <>
-                  <MaterialIcons name="mark-email-unread" size={18} color="#007AFF" />
-                  <Text style={styles.toggleReadButtonText}>{t('center.markUnread')}</Text>
-                </>
-              ) : (
-                <>
-                  <MaterialIcons name="drafts" size={18} color="#007AFF" />
-                  <Text style={styles.toggleReadButtonText}>{t('center.markRead')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.archiveButtonBottom}
-              onPress={() => handleArchiveNotification(notification)}
-            >
-              <MaterialIcons 
-                name="archive" 
-                size={18} 
-                color={!notification.is_read ? "#007AFF" : colors.text.secondary} 
+        <View style={styles.actionButtons}>
+          {activeTab === 'archive' ? (
+            <ActionButton
+              mode={mode}
+              label={t('center.delete')}
+              labelNumberOfLines={1}
+              variant="ghost"
+              leadingIcon={<MaterialIcons name="delete-outline" size={18} color={palette.muted} />}
+              onPress={() => handleDeleteNotification(notification)}
+              style={styles.cardAction}
+            />
+          ) : (
+            <>
+              <ActionButton
+                mode={mode}
+                label={isUnread ? t('center.markRead') : t('center.markUnread')}
+                labelNumberOfLines={1}
+                variant="ghost"
+                loading={isUpdatingReadState}
+                leadingIcon={(
+                  <MaterialIcons
+                    name={isUnread ? 'drafts' : 'mark-email-unread'}
+                    size={18}
+                    color={palette.accent}
+                  />
+                )}
+                onPress={() => handleToggleReadStatus(notification)}
+                style={styles.cardAction}
               />
-              <Text style={[
-                styles.archiveButtonText,
-                !notification.is_read && styles.archiveButtonTextActive
-              ]}>
-                {t('center.archive')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              <ActionButton
+                mode={mode}
+                label={t('center.archive')}
+                labelNumberOfLines={1}
+                variant="ghost"
+                leadingIcon={<MaterialIcons name="archive" size={18} color={palette.muted} />}
+                onPress={() => handleArchiveNotification(notification)}
+                style={styles.cardAction}
+              />
+            </>
+          )}
+        </View>
       </View>
     );
   };
@@ -547,15 +483,17 @@ export default function NotificationsScreen() {
           <View style={styles.titleGroup}>
             <Text accessibilityRole="header" style={styles.headerTitle}>{t('center.title')}</Text>
             {unreadCount > 0 && activeTab !== 'archive' && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-              </View>
+              <Badge mode={mode} tone="accent" compact>{unreadCount}</Badge>
             )}
           </View>
           {unreadCount > 0 && activeTab !== 'archive' && (
-            <TouchableOpacity accessibilityRole="button" style={styles.markAllButton} onPress={markAllAsRead}>
-              <Text style={styles.markAllText}>{t('center.markAllRead')}</Text>
-            </TouchableOpacity>
+            <ActionButton
+              mode={mode}
+              label={t('center.markAllRead')}
+              labelNumberOfLines={1}
+              variant="ghost"
+              onPress={markAllAsRead}
+            />
           )}
         </View>
         <Text style={styles.subtitle}>
@@ -566,7 +504,9 @@ export default function NotificationsScreen() {
       {/* Inbox tabs: the shared SegmentedTabs control, same as Wallet */}
       <View style={styles.tabsWrap}>
         <SegmentedTabs
-          mode={isDark ? 'dark' : 'light'}
+          mode={mode}
+          scrollable
+          accessibilityLabel={t('center.title')}
           tabs={([
             ['all', t('center.all')],
             ['messages', t('center.messages', 'Messages')],
@@ -672,321 +612,190 @@ export default function NotificationsScreen() {
   );
 }
 
-const getStyles = (isDark: boolean, colors: any, topInset: number = 0, bottomInset: number = 0) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.default,
-    paddingTop: topInset,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background.default,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    marginTop: 16,
-  },
-  heading: {
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  eyebrow: {
-    color: colors.text.secondary,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 2,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  titleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  subtitle: {
-    color: colors.text.secondary,
-    fontSize: 14,
-    lineHeight: 23,
-  },
-  tabsWrap: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    alignItems: 'flex-start',
-  },
-  refreshRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: -1,
-    color: colors.text.primary,
-  },
-  unreadBadge: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginLeft: 12,
-    alignSelf: 'center',
-  },
-  unreadBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  markAllButton: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    backgroundColor: 'transparent',
-    borderRadius: uiTokens.radius.pill,
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  markAllText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text.primary,
-  },
-  column: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: bottomInset,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyMessage: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  notificationCard: {
-    backgroundColor: colors.background.paper,
-    borderRadius: 12,
-    marginBottom: 12,
-    boxShadow: isDark
-      ? '0 2px 4px rgba(0, 0, 0, 0.24)'
-      : '0 2px 4px rgba(15, 23, 42, 0.08)',
-    borderWidth: 1,
-    borderColor: colors.divider,
-    position: 'relative',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    padding: 4,
-    zIndex: 10,
-  },
-  unreadNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-    backgroundColor: isDark ? 'rgba(0, 122, 255, 0.05)' : 'rgba(0, 122, 255, 0.03)',
-  },
-  readNotification: {
-    opacity: 0.5,
-    backgroundColor: colors.background.paper,
-  },
-  notificationContent: {
-    flexDirection: 'row',
-    padding: 16,
-    alignItems: 'flex-start',
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    position: 'relative',
-  },
-  unreadIconContainer: {
-    borderWidth: 2,
-    borderColor: '#007AFF',
-  },
-  unreadDot: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FF3B30',
-    borderWidth: 2,
-    borderColor: colors.background.paper,
-  },
-  notificationText: {
-    flex: 1,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  markReadButtonInline: {
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-  },
-  notificationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    flex: 1,
-  },
-  unreadText: {
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  readText: {
-    fontWeight: '500',
-    color: colors.text.secondary,
-  },
-  urgentBadge: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  urgentText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  notificationMessage: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  unreadMessage: {
-    color: colors.text.primary,
-    fontWeight: '500',
-  },
-  readMessage: {
-    color: colors.text.secondary,
-    fontWeight: '400',
-  },
-  notificationTime: {
-    fontSize: 12,
-    color: colors.text.secondary,
-  },
-  conversationSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 7,
-  },
-  conversationSummaryText: {
-    color: colors.text.secondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-    gap: 8,
-  },
-  bottomActionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 8,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-  },
-  markReadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    gap: 6,
-  },
-  markReadButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#007AFF',
-  },
-  toggleReadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    gap: 6,
-  },
-  toggleReadButtonRead: {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
-  },
-  toggleReadButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#007AFF',
-  },
-  archiveButtonBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
-    gap: 6,
-  },
-  archiveButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text.secondary,
-  },
-  archiveButtonTextActive: {
-    color: '#007AFF',
-  },
-  deleteButton: {
-    padding: 6,
-    borderRadius: 6,
-  },
-});
+const getStyles = (isDark: boolean, colors: any, topInset: number = 0, bottomInset: number = 0) => {
+  const palette = uiPalette(isDark ? 'dark' : 'light');
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background.default,
+      paddingTop: topInset,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background.default,
+    },
+    loadingText: {
+      color: colors.text.secondary,
+      fontSize: uiTokens.type.body,
+      marginTop: uiTokens.space.md,
+    },
+    heading: {
+      gap: uiTokens.space.sm,
+      paddingHorizontal: uiTokens.space.lg,
+      paddingBottom: uiTokens.space.lg,
+    },
+    eyebrow: {
+      color: colors.text.secondary,
+      fontSize: uiTokens.type.caption,
+      fontWeight: '700',
+      letterSpacing: 1,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: uiTokens.space.sm,
+    },
+    titleGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: uiTokens.space.sm,
+    },
+    subtitle: {
+      color: colors.text.secondary,
+      fontSize: uiTokens.type.label,
+      lineHeight: 21,
+    },
+    tabsWrap: {
+      width: '100%',
+      paddingHorizontal: uiTokens.space.lg,
+      paddingBottom: uiTokens.space.sm,
+    },
+    refreshRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      paddingHorizontal: uiTokens.space.lg,
+      paddingTop: uiTokens.space.xs,
+      paddingBottom: uiTokens.space.xs,
+    },
+    headerTitle: {
+      color: colors.text.primary,
+      fontSize: uiTokens.type.heading,
+      fontWeight: '700',
+    },
+    column: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: uiTokens.space.lg,
+      paddingTop: uiTokens.space.sm,
+      paddingBottom: bottomInset,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: uiTokens.space.xl,
+    },
+    emptyTitle: {
+      color: colors.text.primary,
+      fontSize: uiTokens.type.title,
+      fontWeight: '600',
+      marginTop: uiTokens.space.md,
+      marginBottom: uiTokens.space.xs,
+    },
+    emptyMessage: {
+      color: colors.text.secondary,
+      fontSize: uiTokens.type.body,
+      textAlign: 'center',
+      lineHeight: 24,
+    },
+    notificationCard: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.divider,
+      paddingBottom: uiTokens.space.sm,
+      marginBottom: uiTokens.space.sm,
+    },
+    notificationContent: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: uiTokens.space.md,
+      paddingVertical: uiTokens.space.sm,
+    },
+    iconContainer: {
+      width: uiTokens.control.compactHeight,
+      height: uiTokens.control.compactHeight,
+      borderRadius: uiTokens.radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notificationText: {
+      flex: 1,
+      minWidth: 0,
+      gap: uiTokens.space.xs,
+    },
+    notificationHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: uiTokens.space.sm,
+    },
+    notificationTitle: {
+      flex: 1,
+      color: colors.text.primary,
+      fontSize: uiTokens.type.body,
+      lineHeight: 22,
+    },
+    unreadText: {
+      fontWeight: '700',
+    },
+    readText: {
+      color: colors.text.secondary,
+      fontWeight: '600',
+    },
+    notificationMessage: {
+      fontSize: uiTokens.type.label,
+      lineHeight: 20,
+    },
+    unreadMessage: {
+      color: colors.text.primary,
+    },
+    readMessage: {
+      color: colors.text.secondary,
+    },
+    conversationSummary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: uiTokens.space.xs,
+    },
+    conversationSummaryText: {
+      color: palette.muted,
+      fontSize: uiTokens.type.caption,
+      fontWeight: '600',
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: uiTokens.space.xs,
+    },
+    unreadDot: {
+      width: 6,
+      height: 6,
+      borderRadius: uiTokens.radius.pill,
+      backgroundColor: palette.accent,
+    },
+    notificationTime: {
+      color: colors.text.secondary,
+      fontSize: uiTokens.type.caption,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: uiTokens.space.xs,
+      paddingLeft: uiTokens.control.compactHeight + uiTokens.space.md,
+    },
+    cardAction: {
+      paddingHorizontal: uiTokens.space.sm,
+    },
+  });
+};

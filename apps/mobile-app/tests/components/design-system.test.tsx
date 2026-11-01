@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { Pressable, Text, TextInput } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput } from 'react-native';
 import { ActionButton, Badge, FilterChip, FormField, SegmentedTabs, Surface } from '@hashpass/ui/primitives';
 import { uiPalette } from '@hashpass/ui/tokens';
 it('exposes loading and selected states while preserving accessible names', () => {
@@ -9,6 +9,43 @@ it('exposes loading and selected states while preserving accessible names', () =
   const [button, chip] = view!.root.findAllByType(Pressable);
   expect(button.props.disabled).toBe(true); expect(button.props.accessibilityState.busy).toBe(true);
   expect(button.props.accessibilityLabel).toBe('Save'); expect(chip.props.accessibilityState.selected).toBe(true);
+  act(() => view!.unmount());
+});
+it('keeps scrollable tabs on one line and exposes horizontal scrolling', () => {
+  let view: ReturnType<typeof create>;
+  act(() => {
+    view = create(
+      <SegmentedTabs
+        scrollable
+        fullWidth
+        accessibilityLabel="Notification categories"
+        tabs={[
+          { id: 'all', label: 'All' },
+          { id: 'messages', label: 'Messages' },
+          { id: 'updates', label: 'Meeting and event updates' },
+          { id: 'archive', label: 'Archive' },
+        ]}
+        value="all"
+        onChange={() => undefined}
+      />,
+    );
+  });
+  const tablist = view!.root.find(node => node.props.accessibilityRole === 'tablist');
+  const scrollView = view!.root.findByType(ScrollView);
+  const tabs = view!.root.findAll(node => node.props.accessibilityRole === 'tab');
+  const trackStyles = Array.isArray(tablist.props.style) ? tablist.props.style.flat(Infinity) : [tablist.props.style];
+
+  expect(scrollView.props.horizontal).toBe(true);
+  expect(tablist.props.accessibilityLabel).toBe('Notification categories');
+  expect(trackStyles).toContainEqual(expect.objectContaining({ flexWrap: 'nowrap' }));
+  expect(tabs).toHaveLength(4);
+  expect(tabs.every(tab => {
+    const tabStyle = typeof tab.props.style === 'function'
+      ? tab.props.style({ pressed: false })
+      : tab.props.style;
+    const style = Array.isArray(tabStyle) ? tabStyle.flat(Infinity) : [tabStyle];
+    return style.some((entry: { flexShrink?: number }) => entry?.flexShrink === 0);
+  })).toBe(true);
   act(() => view!.unmount());
 });
 it('supports a trailing action icon without changing the button name', () => {
