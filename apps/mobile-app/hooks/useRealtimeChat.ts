@@ -11,6 +11,7 @@ import {
   decryptChatMessage,
   hasChatKeyBackup,
   restoreChatKeyPair,
+  resetChatKeyPair,
   backupChatKeyPair,
 } from '../lib/chat-encryption';
 
@@ -63,6 +64,7 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
   const otherPublicKeyOwnerRef = useRef<string | null>(null);
   const refreshMessagesRef = useRef<() => void>(() => undefined);
   const keySetupGenerationRef = useRef(0);
+  const otherKeyRefreshAtRef = useRef(0);
 
   const loadOtherParticipantKey = useCallback(async () => {
     if (otherParticipantId) {
@@ -201,6 +203,7 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
     privateKeyOwnerRef.current = null;
     otherPublicKeyRef.current = null;
     otherPublicKeyOwnerRef.current = null;
+    otherKeyRefreshAtRef.current = 0;
     setMessages([]);
     setPresence({});
     setKeysReady(false);
@@ -244,6 +247,37 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
     refreshMessagesRef.current();
 
     return { success: true };
+  }, [userId, loadOtherParticipantKey]);
+
+  // Start fresh only after the user confirms that no device or encrypted
+  // backup can restore the registered private key.
+  const resetChatKey = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!userId) return { success: false, error: 'no_user' };
+
+    try {
+      const replacementKey = await resetChatKeyPair(userId);
+      myPrivateKeyRef.current = replacementKey;
+      privateKeyOwnerRef.current = userId;
+      setNeedsKeyRestore(false);
+      setKeyMismatch(false);
+      setKeyBackupMissing(true);
+      setKeysReady(true);
+
+      try {
+        await loadOtherParticipantKey();
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to load participant chat key');
+        return { success: true };
+      }
+
+      refreshMessagesRef.current();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to reset chat key',
+      };
+    }
   }, [userId, loadOtherParticipantKey]);
 
   // Skip restore and generate/publish a replacement key.
@@ -303,7 +337,23 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
         if (!data?.success) throw new Error(data?.error || 'Failed to load messages');
         if (cancelled) return;
         const rows = (data.messages || []) as any[];
-        setMessages(rows.map(decryptRow));
+        let decryptedMessages = rows.map(decryptRow);
+        if (
+          !keyMismatch
+          && otherParticipantId
+          && decryptedMessages.some((message) => message.decryptionFailed)
+          && Date.now() - otherKeyRefreshAtRef.current >= 15000
+        ) {
+          otherKeyRefreshAtRef.current = Date.now();
+          try {
+            await loadOtherParticipantKey();
+            if (cancelled) return;
+            decryptedMessages = rows.map(decryptRow);
+          } catch {
+            // Key refresh is best effort; keep the ciphertext history visible.
+          }
+        }
+        setMessages(decryptedMessages);
         setIsConnected(true);
       } catch (err) {
         if (!cancelled) {
@@ -332,7 +382,7 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
       clearInterval(reconciliationInterval);
       refreshMessagesRef.current = () => undefined;
     };
-  }, [keysReady, meetingId, userId, decryptRow]);
+  }, [keysReady, meetingId, userId, otherParticipantId, keyMismatch, decryptRow, loadOtherParticipantKey]);
 
   // Presence is authenticated and backed by chat_last_seen rather than a
   // browser-originated Realtime broadcast. The app API verifies both users
@@ -442,6 +492,7 @@ export function useRealtimeChat({ meetingId, username, userId, otherParticipantI
     keyBackupMissing,
     needsKeyRestore,
     restoreKeyFromBackup,
+    resetChatKey,
     skipKeyRestore,
     createKeyBackup,
   };

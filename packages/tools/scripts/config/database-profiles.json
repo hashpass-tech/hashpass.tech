@@ -176,7 +176,8 @@
       "db/migrations/V160__preserve_meeting_chat_participant_profiles.sql"
     ],
     "meeting-chat-api-security": [
-      "db/migrations/V161__authenticate_meeting_chat_api_access.sql"
+      "db/migrations/V161__authenticate_meeting_chat_api_access.sql",
+      "db/migrations/V162__explicit_meeting_chat_key_reset.sql"
     ],
     "event-chat": [
       "db/migrations/V071__event_global_chat.sql",

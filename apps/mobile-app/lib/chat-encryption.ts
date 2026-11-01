@@ -18,9 +18,10 @@
  * entering their backup password. If the user forgets their backup password,
  * the backup is unrecoverable (by design -- no password reset for E2E keys).
  *
- * The server rejects a different public key once one is registered, because
- * rotating it would strand existing ciphertext. Re-publishing the same key
- * preserves the encrypted backup.
+ * The server rejects a different public key through the normal publish path,
+ * because rotating it strands existing ciphertext. An explicit, confirmed
+ * reset path is available when the private key and backup are both lost.
+ * Re-publishing the same key preserves its encrypted backup.
  *
  * See apps/docs/docs/reference/mobile-app/e2e-meeting-chat.md for the full
  * design writeup.
@@ -160,6 +161,34 @@ export async function publishChatPublicKey(privateKey: Uint8Array): Promise<void
   if (error || !data?.success) {
     throw new Error(`Failed to publish chat public key: ${error?.message || data?.error || 'unknown error'}`);
   }
+}
+
+/**
+ * Replaces a lost account key after the user explicitly chooses to start fresh.
+ * Previous messages stay encrypted with the old key and cannot be recovered.
+ */
+export async function resetChatKeyPair(userId: string): Promise<Uint8Array> {
+  const currentPublicKey = await fetchOwnChatPublicKey(userId);
+  if (!currentPublicKey) {
+    throw new Error('No registered chat key exists for this account');
+  }
+
+  ensureCryptoPolyfill();
+  const privateKey = x25519.utils.randomSecretKey();
+  const publicKeyHex = bytesToHex(x25519.getPublicKey(privateKey));
+
+  const { data, error } = await requestChatKeys('POST', undefined, {
+    action: 'reset-public-key',
+    expectedPublicKey: bytesToHex(currentPublicKey),
+    publicKey: publicKeyHex,
+  });
+  if (error || !data?.success) {
+    throw new Error(`Failed to reset chat public key: ${error?.message || data?.error || 'unknown error'}`);
+  }
+
+  // Keep any existing local key intact if the server rejects this reset.
+  await writePrivateKeyHex(userId, bytesToHex(privateKey));
+  return privateKey;
 }
 
 /** Checks whether a device's saved private key matches the public key published for its account. */

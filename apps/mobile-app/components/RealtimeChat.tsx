@@ -67,6 +67,7 @@ export default function RealtimeChat({
     keyBackupMissing,
     needsKeyRestore,
     restoreKeyFromBackup,
+    resetChatKey,
     skipKeyRestore,
     createKeyBackup,
   } = useRealtimeChat({
@@ -82,6 +83,9 @@ export default function RealtimeChat({
   const [restorePassword, setRestorePassword] = useState('');
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [showResetKeyModal, setShowResetKeyModal] = useState(false);
+  const [resetKeyError, setResetKeyError] = useState<string | null>(null);
+  const [resetKeyLoading, setResetKeyLoading] = useState(false);
   const [showSetupBackupModal, setShowSetupBackupModal] = useState(false);
   const [setupBackupPassword, setSetupBackupPassword] = useState('');
   const [setupBackupLoading, setSetupBackupLoading] = useState(false);
@@ -156,10 +160,10 @@ export default function RealtimeChat({
 
   // Handle key backup restore when needsKeyRestore is true
   useEffect(() => {
-    if (needsKeyRestore && !showRestoreModal) {
+    if (needsKeyRestore && !showRestoreModal && !showResetKeyModal) {
       setShowRestoreModal(true);
     }
-  }, [needsKeyRestore, showRestoreModal]);
+  }, [needsKeyRestore, showRestoreModal, showResetKeyModal]);
 
   // Handle restore submit
   const handleRestore = async () => {
@@ -193,6 +197,22 @@ export default function RealtimeChat({
     setRestorePassword('');
     setRestoreError(null);
     skipKeyRestore();
+  };
+
+  const handleResetChatKey = async () => {
+    setResetKeyLoading(true);
+    setResetKeyError(null);
+    const result = await resetChatKey();
+    setResetKeyLoading(false);
+
+    if (result.success) {
+      setShowResetKeyModal(false);
+      setShowRestoreModal(false);
+      setRestorePassword('');
+      setRestoreError(null);
+    } else {
+      setResetKeyError(result.error || 'Could not create a new chat key. Try again.');
+    }
   };
 
   // Handle setup backup submit
@@ -444,10 +464,24 @@ export default function RealtimeChat({
 
       {keyMismatch && !needsKeyRestore && (
         <View style={styles.keyMismatchBanner}>
-          <MaterialIcons name="vpn-key" size={18} color={palette.danger} />
-          <Text style={styles.keyMismatchText}>
-            This device can’t access the private key registered to your account. Sending is paused so new messages stay readable. Restore its encrypted backup or use a device that still has the key; older messages can’t be recovered without it.
-          </Text>
+          <View style={styles.keyMismatchCopy}>
+            <MaterialIcons name="vpn-key" size={18} color={palette.danger} />
+            <Text style={styles.keyMismatchText}>
+              This device can’t access the private key registered to your account. Restore its encrypted backup or use a device that still has the key. Sending is paused so messages remain readable.
+            </Text>
+          </View>
+          {keyBackupMissing && (
+            <ActionButton
+              mode={mode}
+              label="Start a new chat key"
+              variant="secondary"
+              onPress={() => {
+                setResetKeyError(null);
+                setShowResetKeyModal(true);
+              }}
+              style={styles.keyResetAction}
+            />
+          )}
         </View>
       )}
 
@@ -665,6 +699,20 @@ export default function RealtimeChat({
                 )}
               </TouchableOpacity>
             </View>
+            {keyMismatch && (
+              <TouchableOpacity
+                style={styles.startFreshButton}
+                onPress={() => {
+                  setResetKeyError(null);
+                  setShowRestoreModal(false);
+                  setShowResetKeyModal(true);
+                }}
+                disabled={restoreLoading}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.startFreshText, { color: palette.danger }]}>Can&apos;t restore? Start fresh</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -726,6 +774,54 @@ export default function RealtimeChat({
                   <ActivityIndicator size="small" color="white" />
                 ) : (
                   <Text style={styles.modalButtonTextPrimary}>Create Backup</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Replacing the account key restores future messaging but cannot recover
+          ciphertext created with the previous key. */}
+      <Modal
+        visible={showResetKeyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!resetKeyLoading) setShowResetKeyModal(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: palette.raised }]}>
+            <MaterialIcons
+              name="warning-amber"
+              size={48}
+              color={palette.danger}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={[styles.modalTitle, { color: palette.text }]}>Create a new chat key?</Text>
+            <Text style={[styles.modalText, { color: palette.muted }]}>
+              This replaces the key for your account across all chats. Messages encrypted with the old key will stay unreadable to you and other participants. If another device still has the old key, cancel and create an encrypted backup there first.
+            </Text>
+            {resetKeyError && <Text style={styles.modalError}>{resetKeyError}</Text>}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonSecondary}
+                onPress={() => setShowResetKeyModal(false)}
+                disabled={resetKeyLoading}
+              >
+                <Text style={[styles.modalButtonTextSecondary, { color: palette.muted }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButtonPrimary, { backgroundColor: palette.accentFill }]}
+                onPress={handleResetChatKey}
+                disabled={resetKeyLoading}
+                accessibilityRole="button"
+              >
+                {resetKeyLoading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>Create new key</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1082,8 +1178,7 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     width: '100%',
     maxWidth: 960,
     alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     gap: uiTokens.space.sm,
     paddingHorizontal: uiTokens.space.lg,
     paddingVertical: uiTokens.space.md,
@@ -1091,11 +1186,20 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: palette.border,
   },
+  keyMismatchCopy: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: uiTokens.space.sm,
+  },
   keyMismatchText: {
     flex: 1,
     color: palette.text,
     fontSize: uiTokens.type.caption,
     lineHeight: 18,
+  },
+  keyResetAction: {
+    alignSelf: 'flex-start',
+    marginLeft: uiTokens.space.xl,
   },
   keyBackupBanner: {
     width: '100%',
@@ -1276,6 +1380,15 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     gap: uiTokens.space.md,
     width: '100%',
     marginTop: uiTokens.space.sm,
+  },
+  startFreshButton: {
+    marginTop: uiTokens.space.md,
+    paddingVertical: uiTokens.space.sm,
+  },
+  startFreshText: {
+    fontSize: uiTokens.type.caption,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   modalButtonSecondary: {
     flex: 1,

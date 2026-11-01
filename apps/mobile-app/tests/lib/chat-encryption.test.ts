@@ -40,6 +40,7 @@ import {
   backupChatKeyPair,
   hasChatKeyBackup,
   restoreChatKeyPair,
+  resetChatKeyPair,
   deleteChatKeyBackup,
 } from '../../lib/chat-encryption';
 // eslint-disable-next-line import/first
@@ -470,6 +471,41 @@ describe('chat-encryption', () => {
         method: 'DELETE',
         skipEventSegment: true,
       }));
+    });
+  });
+
+  describe('explicit key reset', () => {
+    it('stores a replacement locally and resets only against the currently registered key', async () => {
+      const currentPrivateKey = x25519.utils.randomSecretKey();
+      const currentPublicKey = x25519.getPublicKey(currentPrivateKey);
+      mockRequest
+        .mockResolvedValueOnce({
+          success: true,
+          data: { data: { success: true, public_key: bytesToHex(currentPublicKey) } },
+        })
+        .mockResolvedValueOnce({ success: true, data: { data: { success: true } } });
+
+      const replacementPrivateKey = await resetChatKeyPair('user-123');
+      const replacementPublicKey = bytesToHex(x25519.getPublicKey(replacementPrivateKey));
+
+      expect(mockSetItemAsync).toHaveBeenCalledWith(
+        'hashpass_chat_privkey_v1_user-123',
+        bytesToHex(replacementPrivateKey),
+      );
+      expect(mockRequest).toHaveBeenNthCalledWith(1, 'chat/keys', expect.objectContaining({
+        method: 'GET',
+        params: { kind: 'public-key', userId: 'user-123' },
+      }));
+      expect(mockRequest).toHaveBeenNthCalledWith(2, 'chat/keys', expect.objectContaining({
+        method: 'POST',
+        body: {
+          action: 'reset-public-key',
+          expectedPublicKey: bytesToHex(currentPublicKey),
+          publicKey: replacementPublicKey,
+        },
+      }));
+      expect(mockSetItemAsync.mock.invocationCallOrder[0])
+        .toBeGreaterThan(mockRequest.mock.invocationCallOrder[1]);
     });
   });
 });

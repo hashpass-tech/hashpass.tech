@@ -93,8 +93,20 @@ requires restore before sending. A different key cannot replace an already
 registered key: doing so would make existing messages unreadable for both
 participants. Re-publishing the same key preserves its backup. If the private
 key and its backup are both lost, existing ciphertext cannot be recovered; a
-participant or server cannot recreate the private key. When the current key is
-available but has no backup, the chat offers an encrypted-backup setup prompt.
+participant or server cannot recreate the private key. First-time keypairs are
+created automatically when a participant opens chat on a device.
+
+If the private key and backup are unavailable, the user can explicitly start
+with a new account chat key after confirming that history in every chat will
+remain unreadable. This only restores future messaging; it does not re-encrypt
+or delete old ciphertext. The authenticated API calls
+`reset_user_chat_public_key`, which compares the expected current public key
+before replacing it and clears any stale encrypted backup. Ordinary public-key
+publishing remains unable to rotate a key. A user should cancel this reset and
+create a backup on any device that still has the old private key.
+
+When the current key is available but has no backup, the chat offers an
+encrypted-backup setup prompt.
 
 `decryptChatMessage()` returns `null` (never throws) on decryption failure,
 so the UI renders a per-message `[Unable to decrypt this message]` placeholder
@@ -132,6 +144,9 @@ revokes browser roles and grants execution to `service_role`:
   check, returns raw ciphertext/nonce rows for client-side decryption.
 - `get_user_chat_public_key(p_user_id)` / `publish_user_chat_public_key(p_user_id, p_public_key)`
   — the public-key directory read/write.
+- `reset_user_chat_public_key(p_user_id, p_expected_public_key, p_public_key)`
+  — the explicit, owner-authenticated recovery reset; it cannot be called by
+  browser roles and does not alter stored message ciphertext.
 - `update_chat_last_seen(p_user_id, p_meeting_id)` / `get_chat_last_seen(p_user_id, p_meeting_id)`
   — unchanged presence-adjacent "last seen" tracking, just retyped.
 
@@ -166,7 +181,8 @@ state, rather than letting a send silently fail. API authentication failures
 are reported as chat load errors instead of being mistaken for an unpublished
 participant key. `keyMismatch` means this device does not have the private key
 that matches its account's published public key; sending remains paused until
-the matching key is restored.
+the matching key is restored or the user explicitly starts a new key, which
+keeps old ciphertext unreadable across all chats.
 
 ## Why pure-JS crypto (and the one native-adjacent exception)
 
