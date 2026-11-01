@@ -58,6 +58,11 @@ export const getDatabasePool = (): Pool => {
     connectionString: connectionString
       ? getNormalizedDatabaseConnectionString(connectionString)
       : 'postgres://invalid:invalid@localhost:5432/better_auth_missing',
+    // Each Lambda execution environment handles one invocation at a time.
+    // Keep one connection per warm process so horizontal Lambda scaling does
+    // not multiply node-postgres's default pool of ten against Supabase's
+    // per-role session-pool connection limit.
+    max: 1,
     connectionTimeoutMillis: getDatabaseConnectionTimeoutMillis(),
     ssl: isDatabaseSslDisabled()
       ? false

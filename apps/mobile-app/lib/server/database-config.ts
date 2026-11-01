@@ -32,6 +32,33 @@ const isSupabasePoolerHost = (hostname: string): boolean =>
   hostname === "pooler.supabase.com" ||
   hostname.endsWith(".pooler.supabase.com");
 
+const normalizeSupabasePoolerMode = (connectionString: string): string => {
+  if (
+    (readEnv("BETTER_AUTH_DATABASE_POOLER_MODE") || "").toLowerCase() !==
+    "transaction"
+  ) {
+    return connectionString;
+  }
+
+  try {
+    const url = new URL(connectionString);
+    if (!isSupabasePoolerHost(url.hostname.toLowerCase())) {
+      return connectionString;
+    }
+
+    // Supabase shared pooler uses port 5432 for session mode and 6543 for
+    // transaction mode. Lambda handlers are short-lived and should not hold a
+    // dedicated Postgres session for every warm execution environment.
+    if (!url.port || url.port === "5432") {
+      url.port = "6543";
+    }
+
+    return url.toString();
+  } catch {
+    return connectionString;
+  }
+};
+
 const convertDirectSupabaseUrlToPooler = (connectionString: string): string => {
   try {
     const url = new URL(connectionString);
@@ -151,4 +178,7 @@ export const hasDatabaseConnectionString = (): boolean =>
 
 export const getNormalizedDatabaseConnectionString = (
   connectionString: string,
-): string => normalizeDatabaseConnectionString(connectionString);
+): string =>
+  normalizeDatabaseConnectionString(
+    normalizeSupabasePoolerMode(connectionString),
+  );

@@ -76,3 +76,16 @@ test('preserves noop status for unchanged payloads over the warning threshold', 
   assert.equal(result.status.action, 'noop');
   assert.equal(result.environment, null);
 });
+
+test('persists the Better Auth pooler mode during Lambda environment sync', () => {
+  const result = runEnvironmentSync({
+    currentVariables: {},
+    environmentVariables: { BETTER_AUTH_DATABASE_POOLER_MODE: 'transaction' },
+  });
+
+  assert.equal(result.status.action, 'update');
+  assert.equal(
+    result.environment.Variables.BETTER_AUTH_DATABASE_POOLER_MODE,
+    'transaction',
+  );
+});
