@@ -20,17 +20,19 @@
   HASHPASS is the active monorepo for the mobile product, the new <code>hashpass.club</code> web app, shared UI, docs, and deployment tooling.
 </p>
 
-## 📋 Latest Changes (v1.9.204)
+## 📋 Latest Changes (v1.9.205)
 
-### Released
-- simplify chat key feedback and inbox UI
+### Bug Fixes
+
+* **notifications:** use mapped chat bubble icon ([43ffc58](https://github.com/hashpass-tech/hashpass.tech/commit/43ffc584317aa5a8ec8e8eebeddaef44027374a5))
+### Release Highlights
+- use mapped chat bubble icon
 
 ### Release scope
-- Compared with: `v1.9.203` (the previous global release tag)
+- Compared with: `v1.9.204` (the previous global release tag)
 
 ### Affected products & packages
 - Mobile app
-- Shared UI
 
 For full version history, see [CHANGELOG.md](./CHANGELOG.md)
 
