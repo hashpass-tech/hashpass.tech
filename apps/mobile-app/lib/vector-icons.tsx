@@ -303,6 +303,7 @@ const WEB_MATERIAL_ICONS: Record<string, WebIconComponent> = {
   "card-membership": IdCard,
   celebration: PartyPopper,
   chat: MessageCircle,
+  "chat-bubble-outline": MessageCircle,
   forum: MessageCircle,
   check: Check,
   "check-circle": CircleCheck,

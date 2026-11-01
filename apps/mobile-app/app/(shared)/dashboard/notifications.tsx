@@ -207,7 +207,7 @@ export default function NotificationsScreen() {
   };
 
   const getNotificationIcon = (type: string) => {
-    if (type === 'chat_message') return 'chat';
+    if (type === 'chat_message') return 'chat-bubble-outline';
     switch (type) {
       case 'meeting_request':
         return 'send';
