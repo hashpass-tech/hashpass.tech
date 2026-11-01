@@ -1,3 +1,16 @@
+## [1.9.203](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.202...v1.9.203) (2026-11-01)
+### Released
+- restore chat after a lost key
+
+### Release scope
+- Compared with: `v1.9.202` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+- Database migrations
+- Documentation
+- Release tooling
+
 ## [1.9.202](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.201...v1.9.202) (2026-11-01)
 ### Released
 - bound serverless db connections

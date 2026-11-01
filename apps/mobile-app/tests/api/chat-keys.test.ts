@@ -170,6 +170,27 @@ describe('/api/chat/keys', () => {
     });
   });
 
+  it('resets a key using the authenticated owner and the expected current key', async () => {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { POST } = require('../../app/api/chat/keys+api');
+    const response = await POST(new Request('https://api.hashpass.tech/api/chat/keys', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'reset-public-key',
+        userId: '11111111-1111-4111-8111-111111111111',
+        expectedPublicKey: 'a'.repeat(64),
+        publicKey: 'b'.repeat(64),
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mockRpc).toHaveBeenCalledWith('reset_user_chat_public_key', {
+      p_user_id: linkedUserId,
+      p_expected_public_key: 'a'.repeat(64),
+      p_public_key: 'b'.repeat(64),
+    });
+  });
+
   it('validates JSON, public-key, action, and backup payloads before writing', async () => {
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { POST } = require('../../app/api/chat/keys+api');
@@ -183,6 +204,16 @@ describe('/api/chat/keys', () => {
       method: 'POST', body: JSON.stringify({ action: 'publish-public-key', publicKey: 'not-a-key' }),
     }));
     expect(invalidPublicKey.status).toBe(400);
+
+    const invalidResetKey = await POST(new Request('https://api.hashpass.tech/api/chat/keys', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'reset-public-key',
+        expectedPublicKey: 'not-a-key',
+        publicKey: 'b'.repeat(64),
+      }),
+    }));
+    expect(invalidResetKey.status).toBe(400);
 
     const invalidAction = await POST(new Request('https://api.hashpass.tech/api/chat/keys', {
       method: 'POST', body: JSON.stringify({ action: 'rotate' }),

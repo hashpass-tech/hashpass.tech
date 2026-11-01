@@ -119,6 +119,23 @@ export async function POST(request: Request) {
       return json({ data });
     }
 
+    if (body.action === 'reset-public-key') {
+      if (
+        typeof body.expectedPublicKey !== 'string' || !PUBLIC_KEY_PATTERN.test(body.expectedPublicKey) ||
+        typeof body.publicKey !== 'string' || !PUBLIC_KEY_PATTERN.test(body.publicKey)
+      ) {
+        return json({ error: 'Valid current and replacement X25519 public keys are required' }, 400);
+      }
+      const { data, error } = await supabase.rpc('reset_user_chat_public_key', {
+        p_user_id: auth.userId,
+        p_expected_public_key: body.expectedPublicKey,
+        p_public_key: body.publicKey,
+      });
+      if (error) throw error;
+      if (!data?.success) return json({ data }, 409);
+      return json({ data });
+    }
+
     if (body.action !== 'store-backup') return json({ error: 'A valid chat key action is required' }, 400);
     if (
       typeof body.encryptedPrivateKey !== 'string' || !ENCRYPTED_BACKUP_PATTERN.test(body.encryptedPrivateKey) ||

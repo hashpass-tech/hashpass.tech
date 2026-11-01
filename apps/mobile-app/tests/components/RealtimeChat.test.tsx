@@ -6,6 +6,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 const mockRestoreKeyFromBackup = jest.fn();
 const mockSkipKeyRestore = jest.fn();
+const mockResetChatKey = jest.fn();
 const mockCreateKeyBackup = jest.fn();
 const mockRefreshNotifications = jest.fn();
 const mockScrollToBottom = jest.fn();
@@ -37,6 +38,7 @@ let mockChatState: { messages: any[]; [key: string]: any } = {
   needsKeyRestore: false,
   restoreKeyFromBackup,
   skipKeyRestore,
+  resetChatKey: (...args: unknown[]) => mockResetChatKey(...args),
   createKeyBackup: (...args: unknown[]) => mockCreateKeyBackup(...args),
 };
 
@@ -202,6 +204,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockRestoreKeyFromBackup.mockResolvedValue({ success: true });
+  mockResetChatKey.mockResolvedValue({ success: true });
   mockCreateKeyBackup.mockResolvedValue({ success: true });
   mockChatState = {
     ...mockChatState,
@@ -315,6 +318,49 @@ it("does not offer a skip when the registered private key must be restored", asy
   expect(mockSkipKeyRestore).not.toHaveBeenCalled();
 });
 
+it("requires confirmation before replacing a lost chat key and warns about unreadable history", async () => {
+  mockChatState = { ...mockChatState, keyMismatch: true, keyBackupMissing: true };
+  const view = renderChat();
+
+  const resetAction = view.root
+    .findAllByType("ActionButton" as any)
+    .find((button) => button.props.label === "Start a new chat key");
+  expect(resetAction).toBeTruthy();
+  await act(async () => resetAction!.props.onPress());
+
+  expect(findModal(view, 2).props.visible).toBe(true);
+  expect(view.root.findAllByType("Text" as any).some((node) =>
+    typeof node.props.children === "string"
+    && node.props.children.includes("This replaces the key for your account across all chats."),
+  )).toBe(true);
+
+  await act(async () => {
+    await pressText(view, "Create new key");
+  });
+  expect(mockResetChatKey).toHaveBeenCalledTimes(1);
+  expect(findModal(view, 2).props.visible).toBe(false);
+  act(() => view.unmount());
+});
+
+it("offers a fresh-key option beside backup restore when the user cannot restore", async () => {
+  mockChatState = { ...mockChatState, keyMismatch: true };
+  const view = renderChat(true);
+
+  expect(findModal(view, 0).props.visible).toBe(true);
+  await act(async () => {
+    await pressText(view, "Can't restore? Start fresh");
+  });
+  expect(findModal(view, 0).props.visible).toBe(false);
+  expect(findModal(view, 2).props.visible).toBe(true);
+
+  await act(async () => {
+    await pressText(view, "Cancel");
+  });
+  expect(findModal(view, 2).props.visible).toBe(false);
+  expect(findModal(view, 0).props.visible).toBe(true);
+  act(() => view.unmount());
+});
+
 it("offers a backup prompt only while the local key matches the account", async () => {
   mockChatState = { ...mockChatState, keyBackupMissing: true };
   const view = renderChat();
@@ -327,7 +373,9 @@ it("offers a backup prompt only while the local key matches the account", async 
 
   mockChatState = { ...mockChatState, keyBackupMissing: true, keyMismatch: true };
   const mismatchView = renderChat();
-  expect(mismatchView.root.findAllByType("ActionButton" as any)).toHaveLength(0);
+  const mismatchActions = mismatchView.root.findAllByType("ActionButton" as any);
+  expect(mismatchActions.some((action) => action.props.label === "Set up encrypted backup")).toBe(false);
+  expect(mismatchActions.some((action) => action.props.label === "Start a new chat key")).toBe(true);
   act(() => mismatchView.unmount());
 });
 

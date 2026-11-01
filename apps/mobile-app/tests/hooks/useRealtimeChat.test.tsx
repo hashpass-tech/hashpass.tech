@@ -48,6 +48,7 @@ const mockEncryptChatMessage = jest.fn();
 const mockDecryptChatMessage = jest.fn();
 const mockHasChatKeyBackup = jest.fn();
 const mockRestoreChatKeyPair = jest.fn();
+const mockResetChatKeyPair = jest.fn();
 const mockBackupChatKeyPair = jest.fn();
 
 jest.mock('../../lib/chat-encryption', () => ({
@@ -61,6 +62,7 @@ jest.mock('../../lib/chat-encryption', () => ({
   decryptChatMessage: (...args: unknown[]) => mockDecryptChatMessage(...args),
   hasChatKeyBackup: (...args: unknown[]) => mockHasChatKeyBackup(...args),
   restoreChatKeyPair: (...args: unknown[]) => mockRestoreChatKeyPair(...args),
+  resetChatKeyPair: (...args: unknown[]) => mockResetChatKeyPair(...args),
   backupChatKeyPair: (...args: unknown[]) => mockBackupChatKeyPair(...args),
 }));
 
@@ -131,6 +133,7 @@ describe('useRealtimeChat', () => {
     mockDoesChatPrivateKeyMatchPublicKey.mockReturnValue(true);
     mockHasChatKeyBackup.mockResolvedValue({ hasBackup: false });
     mockRestoreChatKeyPair.mockResolvedValue({ success: true });
+    mockResetChatKeyPair.mockResolvedValue(new Uint8Array([9, 8, 7]));
     mockBackupChatKeyPair.mockResolvedValue({ success: true });
     mockApiRequest.mockImplementation(async (_path: string, options: any) => {
       if (options.method === 'GET') {
@@ -293,7 +296,7 @@ describe('useRealtimeChat', () => {
     await act(async () => renderer.unmount());
   });
 
-  it('keeps chat read-only when the device key is missing but the account already has a published key', async () => {
+  it('keeps chat read-only until the user explicitly resets a lost key, then resumes sending', async () => {
     mockLoadChatKeyPair.mockResolvedValue(null);
     mockFetchOwnChatPublicKey.mockResolvedValue(theirPub);
     mockApiRequest.mockImplementation(async (_path: string, options: any) => {
@@ -323,6 +326,21 @@ describe('useRealtimeChat', () => {
     expect(latest!.messages[0]).toEqual(expect.objectContaining({ decryptionFailed: true }));
     await expect(latest!.sendMessage('Do not rotate keys silently')).rejects.toThrow('Restore the chat key backup');
 
+    mockEncryptChatMessage.mockReturnValue({ ciphertext: 'new-ciphertext', nonce: 'new-nonce' });
+    await act(async () => {
+      await expect(latest!.resetChatKey()).resolves.toEqual({ success: true });
+    });
+
+    expect(mockResetChatKeyPair).toHaveBeenCalledWith('my-user-id');
+    expect(latest!.keyMismatch).toBe(false);
+    expect(latest!.keyBackupMissing).toBe(true);
+    await act(async () => latest!.sendMessage('New messages can be sent'));
+    expect(mockEncryptChatMessage).toHaveBeenCalledWith(
+      'New messages can be sent',
+      new Uint8Array([9, 8, 7]),
+      theirPub,
+    );
+
     await act(async () => renderer.unmount());
   });
 
@@ -338,6 +356,7 @@ describe('useRealtimeChat', () => {
     await act(async () => {
       await expect(latest!.createKeyBackup('backup-password')).resolves.toEqual({ success: true });
       await expect(latest!.restoreKeyFromBackup('backup-password')).resolves.toEqual({ success: true });
+      await expect(latest!.resetChatKey()).resolves.toEqual({ success: true });
     });
     expect(mockBackupChatKeyPair).toHaveBeenCalledWith('my-user-id', 'backup-password');
     expect(mockRestoreChatKeyPair).toHaveBeenCalledWith('my-user-id', 'backup-password');
@@ -352,6 +371,7 @@ describe('useRealtimeChat', () => {
     await act(async () => {
       await expect(latest!.restoreKeyFromBackup('backup-password')).resolves.toEqual({ success: false, error: 'no_user' });
       await expect(latest!.createKeyBackup('backup-password')).resolves.toEqual({ success: false, error: 'no_user' });
+      await expect(latest!.resetChatKey()).resolves.toEqual({ success: false, error: 'no_user' });
     });
     await act(async () => noUserRenderer.unmount());
   });
