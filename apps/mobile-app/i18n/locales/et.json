@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Taotle pileti lisamist",
+    "headline": "Skanni oma algset piletit",
+    "intro": "Kas ostsid pileti juba ära? Skanni algne QR-kood, et taotleda HASHPASSi pääset.",
+    "stepsHeading": "Kuidas see käib",
+    "ticketTitle": "Hoia algne pilet käepärast",
+    "ticketBody": "Ava pileti e-kiri või rakendus teisel ekraanil või hoia prinditud pilet valmis.",
+    "scanTitle": "Skanni pileti QR-kood",
+    "scanBody": "Luba kaamerale juurdepääs ja aseta algse pileti QR-kood kaadrisse.",
+    "reviewTitle": "Saada kontrollimiseks",
+    "reviewBody": "Vali üritus ja pääsme tüüp. Ürituse tiim kontrollib pileti enne HASHPASSi pääsme sinu kontoga sidumist.",
+    "singleClaimNote": "Skanni ainult enda ostetud piletit. Iga algset piletit saab taotleda vaid üks kord.",
+    "scanAction": "Skanni pileti QR-koodi",
+    "scannerTitle": "Skanni oma algset piletit",
+    "scannerDescription": "Skanni pileti e-kirjas või rakenduses olev QR-kood.",
+    "back": "Tagasi"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Taotle pileti lisamist"
+  },
   "common": {
     "back": "Tagasi",
     "loading": "Laadimine…",

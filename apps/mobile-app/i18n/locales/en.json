@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Claim a ticket",
+    "headline": "Scan your original ticket",
+    "intro": "Already bought a ticket? Scan its original QR code to request a HASHPASS pass.",
+    "stepsHeading": "How it works",
+    "ticketTitle": "Have your original ticket ready",
+    "ticketBody": "Open the ticket email or app on another screen, or have the printed ticket ready.",
+    "scanTitle": "Scan its QR code",
+    "scanBody": "Allow camera access and hold the original ticket QR inside the frame.",
+    "reviewTitle": "Send it for review",
+    "reviewBody": "Choose the event and pass type. The event team will verify your ticket before linking a HASHPASS pass to your account.",
+    "singleClaimNote": "Only scan a ticket you purchased. Each original ticket can be claimed once.",
+    "scanAction": "Scan ticket QR",
+    "scannerTitle": "Scan your original ticket",
+    "scannerDescription": "Scan the QR code from your ticket email or ticket app.",
+    "back": "Go back"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Claim a ticket"
+  },
   "newsletter": {
     "title": "Subscribe to our newsletter",
     "subtitle": "Join our newsletter for the latest updates",

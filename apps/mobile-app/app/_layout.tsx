@@ -531,6 +531,7 @@ function ThemedContent() {
         <Stack.Screen name="(shared)/terms" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/docs" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/support" options={{ headerShown: false }} />
+        <Stack.Screen name="(shared)/claim" options={{ headerShown: false }} />
         <Stack.Screen name="status" options={{ headerShown: false }} />
         <Stack.Screen name="privacy" options={{ headerShown: false }} />
         <Stack.Screen name="terms" options={{ headerShown: false }} />

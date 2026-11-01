@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Réclamer un billet",
+    "headline": "Scannez votre billet d’origine",
+    "intro": "Vous avez déjà acheté un billet ? Scannez son QR code d’origine pour demander un pass HASHPASS.",
+    "stepsHeading": "Comment ça marche",
+    "ticketTitle": "Préparez votre billet d’origine",
+    "ticketBody": "Ouvrez l’e-mail ou l’application du billet sur un autre écran, ou préparez le billet imprimé.",
+    "scanTitle": "Scannez son QR code",
+    "scanBody": "Autorisez l’accès à la caméra et placez le QR code du billet d’origine dans le cadre.",
+    "reviewTitle": "Envoyez-le pour vérification",
+    "reviewBody": "Choisissez l’événement et le type de pass. L’équipe de l’événement vérifiera le billet avant de l’associer à votre compte HASHPASS.",
+    "singleClaimNote": "Scannez uniquement un billet que vous avez acheté. Chaque billet d’origine ne peut être réclamé qu’une fois.",
+    "scanAction": "Scanner le QR du billet",
+    "scannerTitle": "Scannez votre billet d’origine",
+    "scannerDescription": "Scannez le QR code de l’e-mail ou de l’application de votre billet.",
+    "back": "Retour"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Réclamer un billet"
+  },
   "newsletter": {
     "title": "Abonnez-vous à notre newsletter",
     "subtitle": "Rejoignez notre newsletter pour les dernières mises à jour",

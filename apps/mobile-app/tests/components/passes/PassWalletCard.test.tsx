@@ -11,12 +11,9 @@ import PassWalletCard from '../../../components/passes/PassWalletCard';
 import { withSpring } from 'react-native-reanimated';
 import type { WalletPass } from '../../../lib/pass-wallet';
 
-// Untyped require, matching tests/app/home.test.tsx's convention: the real
-// @types/react-test-renderer types require findByType/find to take an actual
-// component reference, not the plain RN element-name strings ('Text',
-// 'Modal', 'Pressable'...) this file queries by everywhere.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { act, create } = require('react-test-renderer');
+// Keep the renderer untyped: this file queries by the plain RN element-name
+// strings ('Text', 'Modal', 'Pressable'...), not component references.
+const { act, create } = jest.requireActual('react-test-renderer');
 
 const routerPush = jest.fn();
 const share = jest.fn();
@@ -173,7 +170,7 @@ describe('PassWalletCard', () => {
     expect(renderer.root.findByProps({ children: 'Pass Summary' })).toBeTruthy();
 
     act(() => {
-      pressText(renderer, 'More details');
+      pressText(renderer, 'View details');
     });
     expect(routerPush).toHaveBeenCalledWith({
       pathname: '/dashboard/pass-details',
@@ -181,7 +178,7 @@ describe('PassWalletCard', () => {
     });
   });
 
-  it('offers the next-tier purchase and existing-ticket claim on the back face', () => {
+  it('offers the next-tier purchase and routes the existing-ticket claim to its page', () => {
     const generalPass = { ...pass, pass_type: 'general' as const };
     const renderer = render(<PassWalletCard pass={generalPass} />);
 
@@ -189,8 +186,7 @@ describe('PassWalletCard', () => {
       pressText(renderer, 'Details');
     });
     expect(renderer.root.findByProps({ children: 'Upgrade' })).toBeTruthy();
-    expect(renderer.root.findAll((node: any) => node.type === 'Text' && String(node.props.children).includes('Already have a Business or VIP ticket?')).length).toBeGreaterThan(0);
-    expect(renderer.root.findByProps({ children: 'Claim it here' })).toBeTruthy();
+    expect(renderer.root.findByProps({ children: 'Claim a ticket' })).toBeTruthy();
 
     act(() => {
       pressText(renderer, 'Upgrade');
@@ -201,12 +197,50 @@ describe('PassWalletCard', () => {
     });
 
     act(() => {
-      pressText(renderer, 'Claim it here');
+      pressText(renderer, 'Claim a ticket');
     });
-    expect(renderer.root.findAllByType('Modal').some((modal: any) => modal.props.visible)).toBe(true);
+    expect(routerPush).toHaveBeenCalledWith('/claim');
   });
 
-  it('keeps the native back-face actions in a vertical flow with room for the claim link', () => {
+  it('keeps the claim page available from a pass with no further upgrade tier', () => {
+    const renderer = render(<PassWalletCard pass={pass} />);
+
+    act(() => {
+      pressText(renderer, 'Details');
+    });
+    act(() => {
+      pressText(renderer, 'Claim a ticket');
+    });
+
+    expect(routerPush).toHaveBeenCalledWith('/claim');
+  });
+
+  it('keeps long event text untruncated in the fixed-size back face', () => {
+    const longEventName = 'Blockchain Summit LATAM Colombia — Main Stage and Community Track';
+    const renderer = render(
+      <PassWalletCard pass={{ ...pass, eventName: longEventName, eventDateLabel: null }} />,
+    );
+
+    act(() => {
+      pressText(renderer, 'Details');
+    });
+
+    const eventName = renderer.root.findAll(
+      (node: any) => node.type === 'Text'
+        && (node.props.children === longEventName
+          || (Array.isArray(node.props.children) && node.props.children.includes(longEventName))),
+    )[0];
+    expect(eventName).toBeDefined();
+    expect(eventName.props.numberOfLines).toBeUndefined();
+    expect(eventName.props.ellipsizeMode).toBeUndefined();
+    expect(
+      renderer.root.findAll(
+        (node: any) => node.props.contentContainerStyle?.flexGrow === 1,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('keeps the native back-face actions in a vertical flow with room for the claim action', () => {
     const originalPlatform = Platform.OS;
     Platform.OS = 'android';
     try {
@@ -218,8 +252,8 @@ describe('PassWalletCard', () => {
       });
 
       expect(renderer.root.findByProps({ children: 'Upgrade' })).toBeTruthy();
-      expect(renderer.root.findByProps({ children: 'More details' })).toBeTruthy();
-      expect(renderer.root.findByProps({ children: 'Claim it here' })).toBeTruthy();
+      expect(renderer.root.findByProps({ children: 'View details' })).toBeTruthy();
+      expect(renderer.root.findByProps({ children: 'Claim a ticket' })).toBeTruthy();
 
       act(() => renderer.unmount());
     } finally {

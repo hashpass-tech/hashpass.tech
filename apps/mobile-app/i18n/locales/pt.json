@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Resgatar ingresso",
+    "headline": "Escaneie seu ingresso original",
+    "intro": "Já comprou um ingresso? Escaneie o QR code original para solicitar um passe HASHPASS.",
+    "stepsHeading": "Como funciona",
+    "ticketTitle": "Deixe seu ingresso original pronto",
+    "ticketBody": "Abra o e-mail ou o app do ingresso em outra tela ou tenha o ingresso impresso em mãos.",
+    "scanTitle": "Escaneie o QR code",
+    "scanBody": "Permita o acesso à câmera e posicione o QR code do ingresso original dentro do enquadramento.",
+    "reviewTitle": "Envie para análise",
+    "reviewBody": "Escolha o evento e o tipo de passe. A equipe do evento verificará o ingresso antes de vinculá-lo à sua conta HASHPASS.",
+    "singleClaimNote": "Escaneie apenas um ingresso que você comprou. Cada ingresso original pode ser resgatado uma única vez.",
+    "scanAction": "Escanear QR do ingresso",
+    "scannerTitle": "Escaneie seu ingresso original",
+    "scannerDescription": "Escaneie o QR code do e-mail ou do app do ingresso.",
+    "back": "Voltar"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Resgatar ingresso"
+  },
   "newsletter": {
     "title": "Assine nossa newsletter",
     "subtitle": "Junte-se à nossa newsletter para as últimas atualizações",
