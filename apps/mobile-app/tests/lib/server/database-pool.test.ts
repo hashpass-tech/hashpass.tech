@@ -146,6 +146,48 @@ describe("database-pool", () => {
     expect(pool.options.max).toBe(1);
   });
 
+  it.each([
+    [
+      "preserves an explicit transaction-pooler port",
+      "postgresql://postgres:pw@aws-1-us-west-2.pooler.supabase.com:6543/postgres",
+      "6543",
+    ],
+    [
+      "adds the transaction-pooler port when none is set",
+      "postgresql://postgres:pw@aws-1-us-west-2.pooler.supabase.com/postgres",
+      "6543",
+    ],
+    [
+      "leaves non-pooler hosts unchanged",
+      "postgresql://postgres:pw@db.example.com:5432/postgres",
+      "5432",
+    ],
+  ])("%s", (_description, connectionString, expectedPort) => {
+    process.env.BETTER_AUTH_DATABASE_POOLER_MODE = "transaction";
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const {
+      getNormalizedDatabaseConnectionString,
+    } = require("../../../lib/server/database-config");
+
+    const normalized = getNormalizedDatabaseConnectionString(connectionString);
+
+    expect(new URL(normalized).port).toBe(expectedPort);
+  });
+
+  it("preserves malformed connection strings when transaction mode is enabled", () => {
+    process.env.BETTER_AUTH_DATABASE_POOLER_MODE = "transaction";
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const {
+      getNormalizedDatabaseConnectionString,
+    } = require("../../../lib/server/database-config");
+
+    expect(getNormalizedDatabaseConnectionString("not-a-database-url")).toBe(
+      "not-a-database-url",
+    );
+  });
+
   it("preserves the shared-dev pooler host used by local env files", () => {
     process.env.BETTER_AUTH_DATABASE_URL =
       "postgresql://postgres.fxgftanraszjjyeidvia:pw@aws-1-us-east-2.pooler.supabase.com:6543/postgres";
