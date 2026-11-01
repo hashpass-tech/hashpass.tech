@@ -257,11 +257,11 @@ describe('chat-encryption', () => {
       expect(result).toBeNull();
     });
 
-    it('returns null (not throw) on an RPC-level error', async () => {
+    it('surfaces API errors instead of treating them as an unpublished key', async () => {
       mockRequest.mockResolvedValue({ data: null, error: 'network error', success: false });
 
-      const result = await fetchParticipantPublicKey('other-user');
-      expect(result).toBeNull();
+      await expect(fetchParticipantPublicKey('other-user'))
+        .rejects.toThrow('Failed to load participant chat key: network error');
     });
   });
 
@@ -372,16 +372,25 @@ describe('chat-encryption', () => {
 
     it('restores the private key, persists it, and republishes the public key', async () => {
       const privateKey = x25519.utils.randomSecretKey();
+      const publicKey = x25519.getPublicKey(privateKey);
       const backup = encryptPrivateKeyForBackup(privateKey, 'backup-password');
       mockRequest
         .mockResolvedValueOnce({
           data: { data: { success: true, encrypted_private_key: backup.encryptedKey, salt: backup.salt } },
           success: true,
         })
+        .mockResolvedValueOnce({
+          data: { data: { success: true, public_key: bytesToHex(publicKey) } },
+          success: true,
+        })
         .mockResolvedValueOnce({ data: { data: { success: true } }, success: true });
 
       await expect(restoreChatKeyPair('user-123', 'backup-password')).resolves.toEqual({ success: true });
       expect(mockSetItemAsync).toHaveBeenCalledWith('hashpass_chat_privkey_v1_user-123', bytesToHex(privateKey));
+      expect(mockRequest).toHaveBeenNthCalledWith(2, 'chat/keys', expect.objectContaining({
+        method: 'GET',
+        params: { kind: 'public-key', userId: 'user-123' },
+      }));
       expect(mockRequest).toHaveBeenLastCalledWith('chat/keys', expect.objectContaining({
         method: 'POST',
         body: {
@@ -391,12 +400,39 @@ describe('chat-encryption', () => {
       }));
     });
 
+    it('does not replace the local key with a backup that differs from the registered account key', async () => {
+      const backupKey = x25519.utils.randomSecretKey();
+      const registeredKey = x25519.utils.randomSecretKey();
+      const backup = encryptPrivateKeyForBackup(backupKey, 'backup-password');
+      mockRequest
+        .mockResolvedValueOnce({
+          data: { data: { success: true, encrypted_private_key: backup.encryptedKey, salt: backup.salt } },
+          success: true,
+        })
+        .mockResolvedValueOnce({
+          data: { data: { success: true, public_key: bytesToHex(x25519.getPublicKey(registeredKey)) } },
+          success: true,
+        });
+
+      await expect(restoreChatKeyPair('user-123', 'backup-password')).resolves.toEqual({
+        success: false,
+        error: 'key_mismatch',
+      });
+      expect(mockSetItemAsync).not.toHaveBeenCalled();
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+
     it('returns a readable error when restored-key publication rejects with a non-Error value', async () => {
       const privateKey = x25519.utils.randomSecretKey();
+      const publicKey = x25519.getPublicKey(privateKey);
       const backup = encryptPrivateKeyForBackup(privateKey, 'backup-password');
       mockRequest
         .mockResolvedValueOnce({
           data: { data: { success: true, encrypted_private_key: backup.encryptedKey, salt: backup.salt } },
+          success: true,
+        })
+        .mockResolvedValueOnce({
+          data: { data: { success: true, public_key: bytesToHex(publicKey) } },
           success: true,
         })
         .mockRejectedValueOnce('publication unavailable');

@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api-client';
 import { useToastHelpers } from '../contexts/ToastContext';
 import RealtimeChat from './RealtimeChat';
 
@@ -28,18 +28,11 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
     name: string;
     avatar?: string;
   } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [currentUserName, setCurrentUserName] = useState<string | undefined>();
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | undefined>();
 
   const loadMeetingInfo = useCallback(async () => {
-    // Only check authentication after auth has finished loading
-    if (!authLoading && !dbUserId) {
-      console.error('No user ID available for loading meeting info');
-      showError('Error', 'User not authenticated');
-      setLoading(false);
-      return;
-    }
-
     // If auth is still loading, wait
     if (authLoading) {
       return;
@@ -55,74 +48,28 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
     try {
       setLoading(true);
       
-      // Load meeting details
-      const { data: meetingData, error: meetingError } = await supabase
-        .from('meetings')
-        .select('*, speaker_id, requester_id, speaker_name, requester_name')
-        .eq('id', meetingId)
-        .single();
-
-      if (meetingError) {
-        console.error('Error loading meeting:', meetingError);
-        showError('Error', 'Failed to load meeting information');
-        return;
+      const response = await apiClient.request('meetings/chat', {
+        method: 'GET',
+        params: { meetingId, kind: 'participants' },
+        skipEventSegment: true,
+        retries: 0,
+      });
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to load meeting information');
       }
 
-      if (meetingData) {
-        // Determine other participant. meetings.requester_id is a real
-        // Supabase auth uuid — must compare against dbUserId, not user.id
-        // (Better Auth's own id), or this always misidentifies which side
-        // of the meeting the caller is on for a BSL session.
-        const isRequester = meetingData.requester_id === dbUserId;
-        let otherUserId: string | null = null;
-        let otherUserName: string | null = null;
-        let otherUserAvatar: string | undefined;
-        let speakerName: string | undefined;
-        let speakerAvatar: string | undefined;
-
-        const { data: speakerData } = await supabase
-          .from('bsl_speakers')
-          .select('user_id, name, imageurl')
-          .eq('id', meetingData.speaker_id)
-          .maybeSingle();
-        speakerName = speakerData?.name || meetingData.speaker_name || undefined;
-        speakerAvatar = speakerData?.imageurl || undefined;
-        
-        if (isRequester) {
-          if (speakerData?.user_id) {
-            otherUserId = speakerData.user_id;
-            otherUserName = meetingData.speaker_name || speakerData.name;
-            otherUserAvatar = speakerAvatar;
-          }
-        } else {
-          otherUserId = meetingData.requester_id;
-          otherUserName = meetingData.requester_name;
-          setCurrentUserName(speakerName);
-          setCurrentUserAvatar(speakerAvatar);
-        }
-
-        if (isRequester) {
-          setCurrentUserName(undefined);
-          setCurrentUserAvatar(undefined);
-        }
-
-        if (otherUserId) {
-          const { data: participant } = await supabase.rpc('get_meeting_chat_participant', {
-            p_meeting_id: meetingId,
-            p_other_user_id: otherUserId,
-          });
-          setOtherParticipant({
-            id: otherUserId,
-            name: participant?.success ? (participant.name || otherUserName || 'User') : (otherUserName || 'User'),
-            avatar: (participant?.success ? participant.avatar_url : undefined) || otherUserAvatar,
-          });
-        } else {
-          setOtherParticipant(null);
-        }
+      const participantData = response.data?.data;
+      if (!participantData?.success) {
+        throw new Error(participantData?.error || 'Failed to load meeting information');
       }
+
+      setOtherParticipant(participantData.otherParticipant || null);
+      setCurrentUserId(participantData.currentParticipant?.id || dbUserId || undefined);
+      setCurrentUserName(participantData.currentParticipant?.name || undefined);
+      setCurrentUserAvatar(participantData.currentParticipant?.avatar || undefined);
     } catch (error) {
       console.error('Error loading meeting info:', error);
-      showError('Error', 'Failed to load meeting information');
+      showError('Error', error instanceof Error ? error.message : 'Failed to load meeting information');
     } finally {
       setLoading(false);
     }
@@ -134,34 +81,6 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
       loadMeetingInfo();
     }
   }, [meetingId, authLoading, loadMeetingInfo]);
-
-  // Update last seen when chat is viewed
-  useEffect(() => {
-    const updateLastSeen = async () => {
-      if (!dbUserId || !meetingId) return;
-
-      try {
-        const { error } = await supabase.rpc('update_chat_last_seen', {
-          p_user_id: dbUserId,
-          p_meeting_id: meetingId,
-        });
-
-        if (error) {
-          console.error('Error updating chat last seen:', error);
-        }
-      } catch (error) {
-        console.error('Error updating chat last seen:', error);
-      }
-    };
-
-    // Update immediately when component mounts
-    updateLastSeen();
-
-    // Update every 30 seconds while chat is open
-    const interval = setInterval(updateLastSeen, 30000);
-
-    return () => clearInterval(interval);
-  }, [dbUserId, meetingId]);
 
   // Show loading state while auth is loading or meeting info is loading
   if (authLoading || loading) {
@@ -180,6 +99,7 @@ export default function MeetingChat({ meetingId, onClose }: MeetingChatProps) {
         roomName={`meeting_chat_${meetingId}`}
         username={currentUserName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You'}
         meetingId={meetingId}
+        currentUserId={currentUserId}
         otherParticipantId={otherParticipant?.id}
         otherParticipantName={otherParticipant?.name}
         otherParticipantAvatar={otherParticipant?.avatar}

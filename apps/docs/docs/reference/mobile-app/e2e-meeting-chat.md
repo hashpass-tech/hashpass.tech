@@ -5,7 +5,9 @@ implementation. Migration: `db/migrations/V053__e2e_encrypted_persistent_meeting
 (group `meeting-chat-e2e` in `database-profiles.json`). Optional encrypted
 key backup and restore was added later in
 `db/migrations/V075__chat_key_backup_restore.sql`; the completed migration
-record is archived at `archive/docs/E2E_CHAT_ENCRYPTION_UPGRADE.md`.
+record is archived at `archive/docs/E2E_CHAT_ENCRYPTION_UPGRADE.md`. The
+authenticated API boundary and key-rotation guard are in
+`db/migrations/V161__authenticate_meeting_chat_api_access.sql`.
 
 ## What was actually broken before this
 
@@ -51,10 +53,11 @@ None of this was covered by any test before this change.
 Each user holds a device-local **X25519 keypair**. The private key never
 leaves the device (SecureStore on native, `localStorage` on web — same
 platform-branch pattern as `lib/auth/providers/directus.ts`'s session
-storage). Only the public key is published, via `publish_user_chat_public_key`,
-to `public.user_chat_keys` (`user_id uuid PK → auth.users`, world-readable by
-any authenticated user, writable only by the owner — public keys are not
-secret by definition).
+storage). Only the public key is published to `public.user_chat_keys`
+(`user_id uuid PK → auth.users`). The browser calls the authenticated chat-key
+API; its server resolves the signed-in account before reading or publishing
+keys. Public keys are not secret, but callers cannot choose another account
+when publishing a key.
 
 A message is encrypted with **XChaCha20-Poly1305**, using a key derived via
 **HKDF-SHA256** from the **X25519 ECDH shared secret** between the two
@@ -86,12 +89,12 @@ the encrypted backup and salt. There is no password reset or server-side key
 escrow.
 
 When a device has no local key but an encrypted backup exists, the chat UI
-offers restore. Users may skip the prompt and continue with a new keypair,
-which means messages encrypted under the old key remain unavailable on that
-device. Setup reads local storage and checks for the encrypted backup before it
-can generate or publish a replacement key; publishing a new public key clears
-the old backup, so key rotation requires creating a new backup if continuity is
-still desired.
+requires restore before sending. A different key cannot replace an already
+registered key: doing so would make existing messages unreadable for both
+participants. Re-publishing the same key preserves its backup. If the private
+key and its backup are both lost, existing ciphertext cannot be recovered; a
+participant or server cannot recreate the private key. When the current key is
+available but has no backup, the chat offers an encrypted-backup setup prompt.
 
 `decryptChatMessage()` returns `null` (never throws) on decryption failure,
 so the UI renders a per-message `[Unable to decrypt this message]` placeholder
@@ -115,8 +118,11 @@ had an `updated_at` column (dev's does, via its own trigger) — `V053`'s
 `update_chat_last_seen()` simply doesn't touch that column, since
 `last_seen_at` is the only one the feature actually depends on.
 
-RPCs (all uuid-typed now; the old `(text, text, ...)` signatures were
-dropped outright since callers changed in the same commit):
+Database RPCs (all uuid-typed now; the old `(text, text, ...)` signatures were
+dropped outright since callers changed in the same commit). The browser no
+longer calls these directly. The app API authenticates the user and verifies
+meeting membership, then calls the RPCs using its service-role client. V161
+revokes browser roles and grants execution to `service_role`:
 
 - `send_meeting_chat_message(p_meeting_id, p_sender_id, p_ciphertext, p_nonce, p_message_type)`
   — re-validates participancy explicitly (SECURITY DEFINER bypasses RLS, so
@@ -129,27 +135,26 @@ dropped outright since callers changed in the same commit):
 - `update_chat_last_seen(p_user_id, p_meeting_id)` / `get_chat_last_seen(p_user_id, p_meeting_id)`
   — unchanged presence-adjacent "last seen" tracking, just retyped.
 
-### Delivery: realtime *and* actually asynchronous
+### Delivery and authentication
 
-The old broadcast channel required both participants connected
-simultaneously. The new hook (`hooks/useRealtimeChat.ts`) instead:
+The hook (`hooks/useRealtimeChat.ts`) uses the authenticated app API for all
+chat operations:
 
-1. Loads history via `get_meeting_chat_messages` on mount (after both keys
-   are ready), decrypting each row.
-2. Subscribes to Supabase Realtime's **`postgres_changes`** (not
-   `broadcast`) on `meeting_chat_messages` INSERT, filtered by
-   `meeting_id=eq.<id>`. This is driven by the actual database write — a
-   message is only ever visible via this path *after* it has safely
-   persisted, and a client that reconnects later just re-runs step 1. That's
-   what makes delivery asynchronous rather than a live-only illusion.
-3. `sendMessage()` encrypts, calls `send_meeting_chat_message` (persist
-   first), then appends the plaintext locally (the sender already knows it —
-   no need to wait for the realtime echo, which is de-duped by message id if
-   it does arrive).
+- Loads ciphertext history through `GET /api/meetings/chat` after both keys
+  are ready, then decrypts it on-device. History refreshes every five seconds
+  so messages arrive without opening a browser-originated Realtime channel.
+- Encrypts each message on-device and sends only ciphertext and nonce through
+  `POST /api/meetings/chat`. The API resolves identity from the signed-in
+  session, checks meeting membership, validates the encrypted payload, and
+  then persists it.
+- Updates last-seen through that same authenticated API. Presence is derived
+  from the stored last-seen timestamp; the chat does not POST to Supabase's
+  Realtime broadcast endpoint.
 
-Presence (online/offline, last-active-in-chat) is **kept on the old
-`broadcast` channel**, unchanged — that's genuinely ephemeral information
-with no reason to be persisted, unlike message content.
+The `GET /api/meetings/chat?kind=participants` response also resolves the
+speaker and requester profile names and photos on the server. This supports
+Better Auth sessions that have no Supabase browser JWT and keeps each side's
+avatar tied to the matching profile.
 
 ### Key-readiness UI state
 
@@ -157,7 +162,11 @@ with no reason to be persisted, unlike message content.
 never opened chat on any device, so no public key has been published for
 them yet — sending would have nothing to encrypt against.
 `RealtimeChat.tsx` disables the composer and shows an inline banner in this
-state, rather than letting a send silently fail.
+state, rather than letting a send silently fail. API authentication failures
+are reported as chat load errors instead of being mistaken for an unpublished
+participant key. `keyMismatch` means this device does not have the private key
+that matches its account's published public key; sending remains paused until
+the matching key is restored.
 
 ## Why pure-JS crypto (and the one native-adjacent exception)
 
@@ -199,9 +208,11 @@ the guard worth working around.
   RPC-error cases), encrypted backup/restore, and wrong-password handling.
 - `tests/hooks/useRealtimeChat.test.tsx` — hook orchestration with the
   crypto functions mocked: key setup sequencing, history load + decrypt,
-  `otherKeyMissing` gating, `postgres_changes` INSERT handling with
-  id-based de-dup, send flow (encrypt → RPC → optimistic append), and the
-  "recipient has no key yet" send rejection.
+  authenticated API history refresh and send, `otherKeyMissing` gating,
+  backup restore/setup states, and participant-key API errors.
+- `tests/api/meeting-chat.test.ts` — authenticated identity checks, meeting
+  membership, encrypted send validation, presence, and participant profile
+  resolution.
 - Both migration RPCs verified end-to-end against **live dev and prod** via
   rolled-back transactions (`BEGIN; ...; ROLLBACK;`) covering: key
   publish/fetch, a real participant sending a message, a non-participant

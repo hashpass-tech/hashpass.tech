@@ -9,7 +9,7 @@ const mockSkipKeyRestore = jest.fn();
 const mockCreateKeyBackup = jest.fn();
 const mockRefreshNotifications = jest.fn();
 const mockScrollToBottom = jest.fn();
-const mockRpc = jest.fn();
+const mockUseRealtimeChat = jest.fn((..._args: unknown[]) => mockChatState);
 
 async function restoreKeyFromBackup(...args: unknown[]) {
   const result = await mockRestoreKeyFromBackup(...args);
@@ -33,6 +33,7 @@ let mockChatState: { messages: any[]; [key: string]: any } = {
   error: null,
   otherKeyMissing: false,
   keyMismatch: false,
+  keyBackupMissing: false,
   needsKeyRestore: false,
   restoreKeyFromBackup,
   skipKeyRestore,
@@ -77,7 +78,11 @@ jest.mock("react-native-css-interop/jsx-runtime", () =>
 
 jest.mock("@expo/vector-icons", () => ({ MaterialIcons: "MaterialIcons" }));
 jest.mock("../../components/SpeakerAvatar", () => "SpeakerAvatar");
-jest.mock("@hashpass/ui/primitives", () => ({ IconButton: "IconButton" }));
+jest.mock("@hashpass/ui/primitives", () => ({
+  ActionButton: "ActionButton",
+  IconButton: "IconButton",
+  Surface: "Surface",
+}));
 jest.mock("@hashpass/ui/tokens", () => ({
   uiPalette: () => ({
     canvas: "#ffffff",
@@ -95,7 +100,7 @@ jest.mock("@hashpass/ui/tokens", () => ({
   }),
   uiTokens: {
     radius: { media: 16, input: 12, circle: 999 },
-    space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 },
+    space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
     control: { compactHeight: 44 },
     type: { caption: 12, label: 14, body: 16, title: 24 },
   },
@@ -125,7 +130,7 @@ jest.mock("../../contexts/NotificationContext", () => ({
 }));
 
 jest.mock("../../hooks/useRealtimeChat", () => ({
-  useRealtimeChat: () => mockChatState,
+  useRealtimeChat: (...args: unknown[]) => mockUseRealtimeChat(...args),
 }));
 
 jest.mock("../../hooks/useChatScroll", () => ({
@@ -141,15 +146,11 @@ jest.mock("../../lib/chat-emojis", () => ({
   getChatEmojiCategory: () => ({ emojis: [] }),
 }));
 
-jest.mock("../../lib/supabase", () => ({
-  supabase: { rpc: (...args: unknown[]) => mockRpc(...args) },
-}));
-
 import RealtimeChat from "../../components/RealtimeChat";
 
 function renderChat(
   needsKeyRestore = false,
-  avatars: { currentUserAvatar?: string; otherParticipantAvatar?: string } = {},
+  avatars: { currentUserId?: string; currentUserAvatar?: string; otherParticipantAvatar?: string } = {},
 ): ReactTestRenderer {
   mockChatState = { ...mockChatState, needsKeyRestore };
   let view!: ReactTestRenderer;
@@ -193,14 +194,8 @@ function findModal(view: ReactTestRenderer, index: number) {
 }
 
 async function openSetupBackupModal(view: ReactTestRenderer) {
-  act(() => findInput(view, "Backup password").props.onChangeText("restore-password"));
-  await act(async () => {
-    await pressText(view, "Restore");
-  });
-  await act(async () => {
-    jest.advanceTimersByTime(500);
-    await Promise.resolve();
-  });
+  const action = view.root.findByType("ActionButton" as any);
+  await act(async () => action.props.onPress());
 }
 
 beforeEach(() => {
@@ -208,11 +203,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRestoreKeyFromBackup.mockResolvedValue({ success: true });
   mockCreateKeyBackup.mockResolvedValue({ success: true });
-  mockRpc.mockResolvedValue({ data: null, error: null });
   mockChatState = {
     ...mockChatState,
     messages: [],
     keyMismatch: false,
+    keyBackupMissing: false,
     needsKeyRestore: false,
   };
 });
@@ -254,6 +249,23 @@ it("uses the supplied profile photos for both participants and groups incoming s
   expect(view.root.findAllByType("Text" as any).filter((node) => node.props.children === "Speaker")).toHaveLength(2);
 });
 
+it("passes the server-resolved Supabase identity into encrypted chat", () => {
+  const view = renderChat(false, { currentUserId: "server-resolved-user" });
+
+  expect(mockUseRealtimeChat).toHaveBeenCalledWith(expect.objectContaining({
+    userId: "server-resolved-user",
+  }));
+  act(() => view.unmount());
+});
+
+it("shows a calm empty state while the conversation has no messages", () => {
+  const view = renderChat();
+
+  expect(findText(view, "A private conversation")).toBeTruthy();
+  expect(findText(view, "Messages are encrypted on your device. Send a note to get started.")).toBeTruthy();
+  act(() => view.unmount());
+});
+
 it("renders online and offline presence for the chat participant", () => {
   mockChatState = {
     ...mockChatState,
@@ -272,7 +284,7 @@ it("renders online and offline presence for the chat participant", () => {
   act(() => view.unmount());
 });
 
-it("shows the wrong-password error and then opens setup after a successful restore", async () => {
+it("shows the wrong-password error and closes after a successful restore", async () => {
   mockRestoreKeyFromBackup
     .mockResolvedValueOnce({ success: false, error: "wrong_password" })
     .mockResolvedValueOnce({ success: true });
@@ -291,26 +303,37 @@ it("shows the wrong-password error and then opens setup after a successful resto
   expect(mockRestoreKeyFromBackup).toHaveBeenLastCalledWith("correct-password");
   expect(findModal(view, 0).props.visible).toBe(false);
 
-  await act(async () => {
-    jest.advanceTimersByTime(500);
-    await Promise.resolve();
-  });
-  expect(findModal(view, 1).props.visible).toBe(true);
+  expect(findModal(view, 1).props.visible).toBe(false);
 });
 
-it("skips restoring the existing chat backup", async () => {
+it("does not offer a skip when the registered private key must be restored", async () => {
+  mockChatState = { ...mockChatState, keyMismatch: true };
   const view = renderChat(true);
 
-  await act(async () => {
-    await pressText(view, "Skip");
-  });
+  expect(findModal(view, 0).props.visible).toBe(true);
+  expect(view.root.findAllByType("Text" as any).some((node) => node.props.children === "Skip")).toBe(false);
+  expect(mockSkipKeyRestore).not.toHaveBeenCalled();
+});
 
-  expect(mockSkipKeyRestore).toHaveBeenCalledTimes(1);
-  expect(findModal(view, 0).props.visible).toBe(false);
+it("offers a backup prompt only while the local key matches the account", async () => {
+  mockChatState = { ...mockChatState, keyBackupMissing: true };
+  const view = renderChat();
+
+  const action = view.root.findByType("ActionButton" as any);
+  expect(action.props.label).toBe("Set up encrypted backup");
+  await act(async () => action.props.onPress());
+  expect(findModal(view, 1).props.visible).toBe(true);
+  act(() => view.unmount());
+
+  mockChatState = { ...mockChatState, keyBackupMissing: true, keyMismatch: true };
+  const mismatchView = renderChat();
+  expect(mismatchView.root.findAllByType("ActionButton" as any)).toHaveLength(0);
+  act(() => mismatchView.unmount());
 });
 
 it("creates a new chat backup and closes the setup prompt on success", async () => {
-  const view = renderChat(true);
+  mockChatState = { ...mockChatState, keyBackupMissing: true };
+  const view = renderChat();
   await openSetupBackupModal(view);
 
   act(() => findInput(view, "Choose a backup password").props.onChangeText("new-password"));
@@ -322,10 +345,11 @@ it("creates a new chat backup and closes the setup prompt on success", async () 
   expect(findModal(view, 1).props.visible).toBe(false);
 });
 
-it("closes the setup prompt when backup creation fails", async () => {
+it("keeps the backup prompt open and explains backup creation failures", async () => {
   const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
   mockCreateKeyBackup.mockResolvedValue({ success: false, error: "backup_failed" });
-  const view = renderChat(true);
+  mockChatState = { ...mockChatState, keyBackupMissing: true };
+  const view = renderChat();
   await openSetupBackupModal(view);
 
   act(() => findInput(view, "Choose a backup password").props.onChangeText("new-password"));
@@ -338,12 +362,14 @@ it("closes the setup prompt when backup creation fails", async () => {
     "Failed to create key backup:",
     "backup_failed",
   );
-  expect(findModal(view, 1).props.visible).toBe(false);
+  expect(findModal(view, 1).props.visible).toBe(true);
+  expect(findText(view, "backup_failed")).toBeTruthy();
   consoleError.mockRestore();
 });
 
 it("allows the user to skip setting up a new chat backup", async () => {
-  const view = renderChat(true);
+  mockChatState = { ...mockChatState, keyBackupMissing: true };
+  const view = renderChat();
   await openSetupBackupModal(view);
 
   await act(async () => {

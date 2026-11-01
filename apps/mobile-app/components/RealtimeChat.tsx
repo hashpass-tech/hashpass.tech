@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import { IconButton } from '@hashpass/ui/primitives';
+import { ActionButton, IconButton, Surface } from '@hashpass/ui/primitives';
 import { uiPalette, uiTokens } from '@hashpass/ui/tokens';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../hooks/useAuth';
@@ -21,7 +21,6 @@ import { useChatScroll } from '../hooks/useChatScroll';
 import { shouldSendMessageOnWebEnter } from '../lib/chat-input';
 import { getChatEmojiCategory, CHAT_EMOJI_CATEGORIES, type ChatEmojiCategory, type ChatEmojiCategoryId } from '../lib/chat-emojis';
 import SpeakerAvatar from './SpeakerAvatar';
-import { supabase } from '../lib/supabase';
 import { useNotifications } from '../contexts/NotificationContext';
 import { resolveAvatarUrl } from '../lib/auth/avatar';
 import type { RealtimeChatProps } from '../types/RealtimeChat.types';
@@ -30,6 +29,7 @@ export default function RealtimeChat({
   roomName,
   username,
   meetingId,
+  currentUserId,
   otherParticipantId,
   otherParticipantName,
   otherParticipantAvatar,
@@ -37,6 +37,7 @@ export default function RealtimeChat({
 }: RealtimeChatProps) {
   const { isDark } = useTheme();
   const { user, dbUserId } = useAuth();
+  const chatUserId = currentUserId || dbUserId || '';
   const { refreshNotifications } = useNotifications();
   const mode = isDark ? 'dark' : 'light';
   const palette = uiPalette(mode);
@@ -50,12 +51,10 @@ export default function RealtimeChat({
   const [presence, setPresence] = useState<{ [userId: string]: { isOnline: boolean; lastSeen: Date } }>({});
   const ownAvatarUrl = currentUserAvatar || resolveAvatarUrl(user);
 
-  // Use real-time chat hook: loads + persists + decrypts message history,
-  // subscribes to new rows via postgres_changes, and tracks presence.
-  // userId must be the real Supabase auth uuid (dbUserId), not Better
-  // Auth's own user.id -- it's used directly for key generation and every
-  // chat RPC (p_user_id/p_sender_id are uuid, and it's also what
-  // encryption keys are stored under).
+  // The chat hook refreshes encrypted history and sends through the signed-in
+  // app API. Prefer the server-resolved Supabase UUID because a Better Auth
+  // session can be valid before the client-side Supabase bridge populates
+  // dbUserId. Never use Better Auth's own user.id for meeting records or keys.
   const {
     messages,
     sendMessage,
@@ -65,6 +64,7 @@ export default function RealtimeChat({
     error,
     otherKeyMissing,
     keyMismatch,
+    keyBackupMissing,
     needsKeyRestore,
     restoreKeyFromBackup,
     skipKeyRestore,
@@ -73,7 +73,7 @@ export default function RealtimeChat({
     meetingId,
     roomName,
     username,
-    userId: dbUserId || '',
+    userId: chatUserId,
     otherParticipantId,
   });
 
@@ -85,7 +85,7 @@ export default function RealtimeChat({
   const [showSetupBackupModal, setShowSetupBackupModal] = useState(false);
   const [setupBackupPassword, setSetupBackupPassword] = useState('');
   const [setupBackupLoading, setSetupBackupLoading] = useState(false);
-  const [hasPromptedForBackup, setHasPromptedForBackup] = useState(false);
+  const [setupBackupError, setSetupBackupError] = useState<string | null>(null);
 
   // Update presence state from hook
   useEffect(() => {
@@ -97,35 +97,7 @@ export default function RealtimeChat({
   // Use chat scroll hook
   const { containerRef, scrollToBottom } = useChatScroll();
 
-  // Get last seen for other participant
-  const [otherParticipantLastSeen, setOtherParticipantLastSeen] = useState<Date | null>(null);
-  
-  useEffect(() => {
-    const fetchLastSeen = async () => {
-      if (!otherParticipantId || !meetingId) return;
-      
-      try {
-        const { data, error } = await supabase.rpc('get_chat_last_seen', {
-          p_user_id: otherParticipantId,
-          p_meeting_id: meetingId,
-        });
-        
-        if (!error && data?.success && data?.last_seen_at) {
-          setOtherParticipantLastSeen(new Date(data.last_seen_at));
-        }
-      } catch (error) {
-        console.error('Error fetching last seen:', error);
-      }
-    };
-    
-    fetchLastSeen();
-    // Refresh last seen every 30 seconds
-    const interval = setInterval(fetchLastSeen, 30000);
-    return () => clearInterval(interval);
-  }, [otherParticipantId, meetingId]);
-
-  // The hook already dedupes (history load + realtime + optimistic send
-  // all merge into one state) and returns messages in chronological order.
+  // The hook merges history refreshes and optimistic sends by message ID.
   const allMessages: ChatMessage[] = messages;
 
   // Auto-scroll to bottom when new messages arrive
@@ -133,50 +105,17 @@ export default function RealtimeChat({
     scrollToBottom();
   }, [allMessages.length, scrollToBottom]);
 
-  // Update last seen when user views chat or scrolls
-  useEffect(() => {
-    const updateLastSeen = async () => {
-      if (!dbUserId || !meetingId) return;
-
-      try {
-        const { error } = await supabase.rpc('update_chat_last_seen', {
-          p_user_id: dbUserId,
-          p_meeting_id: meetingId,
-        });
-
-        if (error) {
-          console.error('Error updating chat last seen:', error);
-        }
-      } catch (error) {
-        console.error('Error updating chat last seen:', error);
-      }
-    };
-
-    // Update when component mounts
-    updateLastSeen();
-
-    // Update when new messages arrive (user is viewing)
-    if (allMessages.length > 0) {
-      updateLastSeen();
-    }
-
-    // Update periodically while chat is open (every 30 seconds)
-    const interval = setInterval(updateLastSeen, 30000);
-
-    return () => clearInterval(interval);
-  }, [dbUserId, meetingId, allMessages.length]);
-
   // Listen for new incoming messages and refresh notifications. sender_id
   // is always a real uuid now (set by the hook from meeting_chat_messages),
-  // so this is a plain equality check against dbUserId -- no more
+  // so this is a plain equality check against the resolved chat user ID -- no more
   // email/username substring fallback matching needed.
   useEffect(() => {
-    const incomingMessages = allMessages.filter((msg) => msg.user.id !== dbUserId);
+    const incomingMessages = allMessages.filter((msg) => msg.user.id !== chatUserId);
 
     if (incomingMessages.length > 0) {
       refreshNotifications();
     }
-  }, [allMessages.length, dbUserId, refreshNotifications]);
+  }, [allMessages.length, chatUserId, refreshNotifications]);
 
   // Handle message sending -- encryption + persistence both happen inside
   // sendMessage; this just owns the input/sending UI state.
@@ -238,15 +177,11 @@ export default function RealtimeChat({
     if (result.success) {
       setShowRestoreModal(false);
       setRestorePassword('');
-      // After restoring, prompt to set up a new backup (optional)
-      if (!hasPromptedForBackup) {
-        setHasPromptedForBackup(true);
-        // Give the UI a moment to update, then show the setup prompt
-        setTimeout(() => setShowSetupBackupModal(true), 500);
-      }
     } else {
       if (result.error === 'wrong_password') {
         setRestoreError('Incorrect password. Please try again.');
+      } else if (result.error === 'key_mismatch') {
+        setRestoreError('This backup does not match the key registered to this account. Use a device that still has the matching key to read these messages.');
       } else {
         setRestoreError(result.error || 'Failed to restore chat key');
       }
@@ -267,6 +202,7 @@ export default function RealtimeChat({
     }
 
     setSetupBackupLoading(true);
+    setSetupBackupError(null);
     const result = await createKeyBackup(setupBackupPassword);
     setSetupBackupLoading(false);
 
@@ -274,15 +210,15 @@ export default function RealtimeChat({
       setShowSetupBackupModal(false);
       setSetupBackupPassword('');
     } else {
-      // Silently fail -- backup is optional, don't block the user
       console.error('Failed to create key backup:', result.error);
-      setShowSetupBackupModal(false);
+      setSetupBackupError(result.error || 'Could not create an encrypted backup. Try again.');
     }
   };
 
   const handleSkipSetupBackup = () => {
     setShowSetupBackupModal(false);
     setSetupBackupPassword('');
+    setSetupBackupError(null);
   };
 
   const formatTime = (timestamp: string) => {
@@ -293,7 +229,7 @@ export default function RealtimeChat({
   const renderMessage = (message: ChatMessage, index: number) => {
     // sender_id is always dbUserId's real uuid (set server-side from the
     // authenticated RPC caller), so this is a plain equality check.
-    const isOwnMessage = message.user.id === dbUserId;
+    const isOwnMessage = message.user.id === chatUserId;
 
     const isSystemMessage = message.messageType === 'system';
     const isMeetingUpdate = message.messageType === 'meeting_update';
@@ -361,7 +297,9 @@ export default function RealtimeChat({
                     <View style={styles.undecryptedMessageCopy}>
                       <Text style={styles.undecryptedMessageTitle}>Message could not be decrypted</Text>
                       <Text style={styles.undecryptedMessageText}>
-                        A chat key may have changed, or this message may be damaged.
+                        {keyMismatch
+                          ? 'This device is missing the private key needed to read this message. Restore its encrypted backup or use a device that still has the key.'
+                          : 'A participant’s chat key may have changed, or this message may be damaged.'}
                       </Text>
                     </View>
                   </View>
@@ -442,9 +380,9 @@ export default function RealtimeChat({
     return `Active ${diffDays}d ago`;
   };
 
-  const lastSeenText = formatLastSeen(otherParticipantLastSeen);
-  const isOtherParticipantOnline = otherParticipantLastSeen && 
-    (new Date().getTime() - otherParticipantLastSeen.getTime()) < 60000; // Within last minute
+  const otherParticipantPresence = otherParticipantId ? presence[otherParticipantId] : undefined;
+  const lastSeenText = formatLastSeen(otherParticipantPresence?.lastSeen || null);
+  const isOtherParticipantOnline = otherParticipantPresence?.isOnline;
 
   return (
     <KeyboardAvoidingView 
@@ -497,7 +435,9 @@ export default function RealtimeChat({
         <View style={styles.decryptNotice}>
           <MaterialIcons name="lock-outline" size={16} color={palette.muted} />
           <Text style={styles.decryptNoticeText}>
-            Some messages can’t be verified with the current chat keys. Restore your saved key backup, or ask the other participant to restore theirs.
+            {keyMismatch
+              ? 'This device does not have the private key that matches your account. Restore its encrypted backup or use a device that still has the key. Without that key, older messages cannot be decrypted.'
+              : 'Some messages could not be verified with the current chat keys. A participant’s key may have changed, or a stored message may be damaged.'}
           </Text>
         </View>
       )}
@@ -506,9 +446,33 @@ export default function RealtimeChat({
         <View style={styles.keyMismatchBanner}>
           <MaterialIcons name="vpn-key" size={18} color={palette.danger} />
           <Text style={styles.keyMismatchText}>
-            This device can’t access the private key registered to your account. Sending is paused so new messages stay readable. Restore an encrypted key backup or use a device that still has the key; older messages can’t be recovered without it.
+            This device can’t access the private key registered to your account. Sending is paused so new messages stay readable. Restore its encrypted backup or use a device that still has the key; older messages can’t be recovered without it.
           </Text>
         </View>
+      )}
+
+      {keyBackupMissing && !keyMismatch && (
+        <Surface mode={mode} style={styles.keyBackupBanner}>
+          <View style={styles.keyBackupCopy}>
+            <MaterialIcons name="lock-outline" size={18} color={palette.accent} />
+            <View style={styles.keyBackupText}>
+              <Text style={styles.keyBackupTitle}>Protect your chat history</Text>
+              <Text style={styles.keyBackupDescription}>
+                Save an encrypted copy of your private key so you can read these messages on a new device.
+              </Text>
+            </View>
+          </View>
+          <ActionButton
+            mode={mode}
+            label="Set up encrypted backup"
+            variant="secondary"
+            onPress={() => {
+              setSetupBackupError(null);
+              setShowSetupBackupModal(true);
+            }}
+            style={styles.keyBackupButton}
+          />
+        </Surface>
       )}
 
       {/* Messages */}
@@ -518,6 +482,17 @@ export default function RealtimeChat({
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
+        {allMessages.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <MaterialIcons name="lock-outline" size={22} color={palette.accent} />
+            </View>
+            <Text style={styles.emptyText}>A private conversation</Text>
+            <Text style={styles.emptySubtext}>
+              Messages are encrypted on your device. Send a note to get started.
+            </Text>
+          </View>
+        )}
         {allMessages.map((message, index) => renderMessage(message, index))}
       </ScrollView>
 
@@ -694,8 +669,7 @@ export default function RealtimeChat({
         </View>
       </Modal>
 
-      {/* Key Backup Setup Modal - optional prompt after restore to set up
-          a new backup for future device restores */}
+      {/* Key Backup Setup Modal - shown when this matching key has no backup. */}
       <Modal
         visible={showSetupBackupModal}
         transparent
@@ -730,6 +704,9 @@ export default function RealtimeChat({
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {setupBackupError && (
+              <Text style={styles.modalError}>{setupBackupError}</Text>
+            )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalButtonSecondary}
@@ -879,6 +856,7 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     backgroundColor: palette.canvas,
   },
   messagesContent: {
+    flexGrow: 1,
     width: '100%',
     maxWidth: 960,
     alignSelf: 'center',
@@ -1022,18 +1000,30 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingHorizontal: uiTokens.space.xl,
+    paddingVertical: uiTokens.space.xxl,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: uiTokens.radius.circle,
+    backgroundColor: palette.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
-    fontSize: uiTokens.type.title,
+    fontSize: uiTokens.type.label + 2,
     fontWeight: '600',
-    color: palette.muted,
-    marginTop: 16,
+    color: palette.text,
+    marginTop: uiTokens.space.md,
   },
   emptySubtext: {
-    fontSize: 14,
+    maxWidth: 360,
+    fontSize: uiTokens.type.caption,
+    lineHeight: 18,
     color: palette.muted,
-    marginTop: 8,
+    textAlign: 'center',
+    marginTop: uiTokens.space.xs,
   },
   systemMessageContainer: {
     alignSelf: 'center',
@@ -1106,6 +1096,36 @@ const getStyles = (palette: ReturnType<typeof uiPalette>) => StyleSheet.create({
     color: palette.text,
     fontSize: uiTokens.type.caption,
     lineHeight: 18,
+  },
+  keyBackupBanner: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    gap: uiTokens.space.md,
+    paddingHorizontal: uiTokens.space.lg,
+    paddingVertical: uiTokens.space.md,
+  },
+  keyBackupCopy: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: uiTokens.space.sm,
+  },
+  keyBackupText: {
+    flex: 1,
+  },
+  keyBackupTitle: {
+    fontSize: uiTokens.type.label,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  keyBackupDescription: {
+    marginTop: uiTokens.space.xs,
+    fontSize: uiTokens.type.caption,
+    lineHeight: 17,
+    color: palette.muted,
+  },
+  keyBackupButton: {
+    alignSelf: 'flex-start',
   },
   inputContainer: {
     flexDirection: 'row',

@@ -3,8 +3,8 @@
  *
  * Design: each user holds a device-local X25519 keypair (private key stored
  * in SecureStore on native, localStorage on web). Only the public key is
- * published (via publish_user_chat_public_key) so the other participant can
- * derive the same shared secret. A message is encrypted with
+ * published through the authenticated chat-key API so the other participant
+ * can derive the same shared secret. A message is encrypted with
  * XChaCha20-Poly1305 using a key derived via HKDF-SHA256 from the X25519
  * ECDH shared secret between the two participants -- the server only ever
  * sees/stores ciphertext + nonce.
@@ -18,8 +18,9 @@
  * entering their backup password. If the user forgets their backup password,
  * the backup is unrecoverable (by design -- no password reset for E2E keys).
  *
- * Publishing a new public key (key rotation) clears the encrypted backup,
- * forcing the user to create a new one if they want backup again.
+ * The server rejects a different public key once one is registered, because
+ * rotating it would strand existing ciphertext. Re-publishing the same key
+ * preserves the encrypted backup.
  *
  * See apps/docs/docs/reference/mobile-app/e2e-meeting-chat.md for the full
  * design writeup.
@@ -132,7 +133,11 @@ export async function loadChatKeyPair(userId: string): Promise<Uint8Array | null
 /** Returns null if the other participant hasn't set up chat yet (never opened it on any device). */
 export async function fetchParticipantPublicKey(userId: string): Promise<Uint8Array | null> {
   const { data, error } = await requestChatKeys('GET', { kind: 'public-key', userId });
-  if (error || !data?.success || !data?.public_key) return null;
+  if (error) throw new Error(`Failed to load participant chat key: ${error.message}`);
+  if (data?.error === 'key_not_found') return null;
+  if (!data?.success || !data.public_key) {
+    throw new Error('The participant chat key could not be verified');
+  }
   return hexToBytes(data.public_key);
 }
 
@@ -317,9 +322,9 @@ export async function hasChatKeyBackup(
 }
 
 /** Restores the user's private key from a server-side encrypted backup.
- * Returns true on success, false if the password is wrong or no backup exists.
- * On success, the decrypted key is written to SecureStore/localStorage and
- * the public key is re-published (so other participants can find it). */
+ * Verifies it against the account's registered key before changing local
+ * storage, so an older or unrelated backup cannot replace a usable key.
+ * On success, the key is written to SecureStore/localStorage and re-published. */
 export async function restoreChatKeyPair(
   userId: string,
   password: string
@@ -344,6 +349,20 @@ export async function restoreChatKeyPair(
 
   if (!privateKey) {
     return { success: false, error: 'wrong_password' };
+  }
+
+  let registeredPublicKey: Uint8Array | null;
+  try {
+    registeredPublicKey = await fetchOwnChatPublicKey(userId);
+  } catch (verifyError) {
+    return {
+      success: false,
+      error: verifyError instanceof Error ? verifyError.message : 'Unable to verify account chat key',
+    };
+  }
+
+  if (registeredPublicKey && !doesChatPrivateKeyMatchPublicKey(privateKey, registeredPublicKey)) {
+    return { success: false, error: 'key_mismatch' };
   }
 
   // Write the decrypted key to device storage

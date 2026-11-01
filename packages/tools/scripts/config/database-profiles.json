@@ -82,7 +82,8 @@
       "event-search-aliases",
       "business-invite-campaigns",
       "event-scoped-speakers",
-      "bsl-speaker-identity-claims"
+      "bsl-speaker-identity-claims",
+      "meeting-chat-api-security"
     ],
     "core-development": [
       "hashpass-auth-qr",
@@ -93,6 +94,7 @@
       "mission-control",
       "non-custodial-wallet",
       "chat-key-backup",
+      "meeting-chat-api-security",
       "event-public-flags"
     ],
     "core-production": [
@@ -104,6 +106,7 @@
       "mission-control",
       "non-custodial-wallet",
       "chat-key-backup",
+      "meeting-chat-api-security",
       "core-speaker-shape",
       "event-scoped-speakers",
       "bsl-speaker-identity-claims",
@@ -171,6 +174,9 @@
       "db/migrations/V054__meeting_chat_realtime_and_participant_profiles.sql",
       "db/migrations/V066__restore_meeting_chat_messages_policies.sql",
       "db/migrations/V160__preserve_meeting_chat_participant_profiles.sql"
+    ],
+    "meeting-chat-api-security": [
+      "db/migrations/V161__authenticate_meeting_chat_api_access.sql"
     ],
     "event-chat": [
       "db/migrations/V071__event_global_chat.sql",
