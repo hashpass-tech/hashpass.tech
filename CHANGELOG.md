@@ -1,3 +1,14 @@
+## [1.9.202](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.201...v1.9.202) (2026-11-01)
+### Released
+- bound serverless db connections
+
+### Release scope
+- Compared with: `v1.9.201` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+- Release tooling
+
 ## [1.9.201](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.200...v1.9.201) (2026-10-31)
 ### Released
 - secure meeting chat API and preserve key recovery

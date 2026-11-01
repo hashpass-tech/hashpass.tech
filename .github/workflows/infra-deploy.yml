@@ -142,6 +142,10 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: https://api.hashpass.tech/api
           EXPO_PUBLIC_BETTER_AUTH_URL: https://api.hashpass.tech/api/auth
           BETTER_AUTH_URL: https://api.hashpass.tech/api/auth
+          # Lambda uses Supabase's shared transaction pooler (6543) to avoid
+          # exhausting the session pooler's 15-client limit as warm instances
+          # scale horizontally. Database migration jobs keep their own URL.
+          BETTER_AUTH_DATABASE_POOLER_MODE: transaction
           SENTRY_DSN: ${{ vars.EXPO_PUBLIC_SENTRY_DSN }}
           # Core is the single production database (BSL consolidated into it on
           # 2026-10-20). deploy-api-lambda.sh fans this one secret out to

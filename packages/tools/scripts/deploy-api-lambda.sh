@@ -286,6 +286,7 @@ const syncKeys = [
   'EXPO_PUBLIC_API_BASE_URL',
   'EXPO_PUBLIC_BETTER_AUTH_URL',
   'BETTER_AUTH_URL',
+  'BETTER_AUTH_DATABASE_POOLER_MODE',
   'SENTRY_DSN',
   // PIN second-factor pepper (lib/server/pin-auth.ts). Only callers that have
   // it in their own environment sync it (a local deploy with the repo .env

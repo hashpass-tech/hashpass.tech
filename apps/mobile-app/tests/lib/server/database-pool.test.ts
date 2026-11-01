@@ -3,6 +3,7 @@
 describe("database-pool", () => {
   const envKeys = [
     "BETTER_AUTH_DATABASE_URL",
+    "BETTER_AUTH_DATABASE_POOLER_MODE",
     "BSL_BETTER_AUTH_DATABASE_URL",
     "BSL_DATABASE_URL",
     "DATABASE_URL",
@@ -34,6 +35,7 @@ describe("database-pool", () => {
     jest.resetModules();
 
     delete process.env.BETTER_AUTH_DATABASE_URL;
+    delete process.env.BETTER_AUTH_DATABASE_POOLER_MODE;
     delete process.env.BSL_BETTER_AUTH_DATABASE_URL;
     delete process.env.BSL_DATABASE_URL;
     delete process.env.DATABASE_URL;
@@ -126,6 +128,22 @@ describe("database-pool", () => {
     expect(getDatabaseConnectionString()).toBe(
       "postgresql://postgres.fxgftanraszjjyeidvia:pw@aws-0-us-east-2.pooler.supabase.com:5432/postgres",
     );
+  });
+
+  it("uses the transaction pooler and one connection for Better Auth", () => {
+    process.env.BETTER_AUTH_DATABASE_POOLER_MODE = "transaction";
+    process.env.BETTER_AUTH_DATABASE_URL =
+      "postgresql://postgres.fxgftanraszjjyeidvia:pw@aws-1-us-west-2.pooler.supabase.com:5432/postgres";
+
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { getDatabasePool } = require("../../../lib/server/database-pool");
+    const pool = getDatabasePool() as unknown as {
+      options: { connectionString: string; max: number };
+    };
+    const connectionUrl = new URL(pool.options.connectionString);
+
+    expect(connectionUrl.port).toBe("6543");
+    expect(pool.options.max).toBe(1);
   });
 
   it("preserves the shared-dev pooler host used by local env files", () => {
