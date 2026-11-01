@@ -1,3 +1,18 @@
+## [1.9.205](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.204...v1.9.205) (2026-11-01)
+
+
+### Bug Fixes
+
+* **notifications:** use mapped chat bubble icon ([43ffc58](https://github.com/hashpass-tech/hashpass.tech/commit/43ffc584317aa5a8ec8e8eebeddaef44027374a5))
+### Release Highlights
+- use mapped chat bubble icon
+
+### Release scope
+- Compared with: `v1.9.204` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+
 ## [1.9.204](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.203...v1.9.204) (2026-11-01)
 ### Released
 - simplify chat key feedback and inbox UI
