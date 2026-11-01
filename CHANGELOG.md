@@ -1,3 +1,18 @@
+## [1.9.206](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.205...v1.9.206) (2026-11-01)
+
+
+### Features
+
+* **mobile:** add dedicated ticket claim flow ([0af228e](https://github.com/hashpass-tech/hashpass.tech/commit/0af228eb6cb9840feda59f4b34e4f875d5cf13d2))
+### Release Highlights
+- add dedicated ticket claim flow
+
+### Release scope
+- Compared with: `v1.9.205` (the previous global release tag)
+
+### Affected products & packages
+- Mobile app
+
 ## [1.9.205](https://github.com/hashpass-tech/hashpass.tech/compare/v1.9.204...v1.9.205) (2026-11-01)
 
 

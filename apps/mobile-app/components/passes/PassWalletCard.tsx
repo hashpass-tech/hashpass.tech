@@ -27,7 +27,6 @@ import { normalizePassNumber } from '../../lib/pass-wallet';
 import DynamicQRDisplay from '../DynamicQRDisplay';
 import PassTiltCard from './PassTiltCard';
 import NotchMaskedCard from './NotchMaskedCard';
-import PassUpgradeRequestModal from './PassUpgradeRequestModal';
 import PassShareModal from './PassShareModal';
 import { usePassMotionPreferences } from './pass-motion-preferences';
 import { nextPassType } from '../../lib/pass-upgrade-requests';
@@ -52,7 +51,6 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
   const router = useRouter();
   const [showQRModal, setShowQRModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showUpgradeRequest, setShowUpgradeRequest] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const { supports3d, reducedMotion } = usePassMotionPreferences();
   const passNumber = normalizePassNumber(pass.pass_number);
@@ -586,28 +584,14 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
         <View style={{ flex: 1, marginRight: 8, minWidth: 0 }}>
           <Text
             style={{
-              fontSize: 12,
+              fontSize: uiTokens.type.label,
               fontWeight: '700',
               color: colors.text.primary,
-              maxWidth: '100%',
-              flexShrink: 1,
-              lineHeight: 16,
-              letterSpacing: -0.1,
-              marginBottom: 1
+              flex: 1,
+              minWidth: 0,
             }}
-            numberOfLines={1}
-            ellipsizeMode="middle"
-            minimumFontScale={0.8}
-            adjustsFontSizeToFit
           >
             {translate('passSummary', {})}
-          </Text>
-          <Text style={{
-            fontSize: 9,
-            color: colors.text.secondary,
-            opacity: 0.8
-          }}>
-            {translate('quickOverview', {})}
           </Text>
         </View>
         <TouchableOpacity
@@ -627,38 +611,37 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
       </View>
 
       {/* Summary Content */}
-      <View style={{ flex: 1, padding: 16, paddingTop: 12, paddingBottom: 60, justifyContent: 'flex-start', position: 'relative' }}>
-        <View style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <MaterialIcons name="event" size={18} color={colors.text.secondary} />
-            <Text style={{ flex: 1, minWidth: 0, fontSize: 12, color: colors.text.secondary, marginLeft: 8 }} numberOfLines={1} ellipsizeMode="middle">
+      <View style={{ flex: 1, padding: uiTokens.space.md, paddingTop: uiTokens.space.sm, paddingBottom: uiTokens.control.minHeight }}>
+        <View style={{ marginBottom: uiTokens.space.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: uiTokens.space.xs }}>
+            <MaterialIcons name="event" size={14} color={colors.text.secondary} />
+            <Text style={{ flex: 1, minWidth: 0, fontSize: uiTokens.type.caption, color: colors.text.secondary, marginLeft: uiTokens.space.sm }}>
               {passEventShortName}{passEventDate ? ` • ${passEventDate}` : ''}
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <MaterialIcons name="label" size={18} color={colors.text.secondary} />
-            <Text style={{ flex: 1, minWidth: 0, fontSize: 12, color: colors.text.secondary, marginLeft: 8 }} numberOfLines={1} ellipsizeMode="tail">
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <MaterialIcons name="label" size={14} color={colors.text.secondary} />
+            <Text style={{ flex: 1, minWidth: 0, fontSize: uiTokens.type.caption, color: colors.text.secondary, marginLeft: uiTokens.space.sm }}>
               {getPassTypeLabel(pass.pass_type)} {t({ id: 'passes.pass', message: 'Pass' })} • {(pass.status || '').toUpperCase()}
             </Text>
           </View>
         </View>
 
         {/* Quick Access Info */}
-        <View style={{ marginBottom: 24 }}>
+        <View style={{ marginBottom: uiTokens.space.sm }}>
           <Text style={{
-            fontSize: 11,
+            fontSize: uiTokens.type.caption,
             fontWeight: '600',
             color: colors.text.primary,
-            marginBottom: 8,
+            marginBottom: uiTokens.space.xs,
             textTransform: 'uppercase',
             letterSpacing: 0.5
           }}>
             {translate('accessIncluded', {})}
           </Text>
           <Text style={{
-            fontSize: 12,
+            fontSize: uiTokens.type.caption,
             color: colors.text.secondary,
-            lineHeight: 18
           }}>
             {getPassAccess(pass.pass_type)}
           </Text>
@@ -666,26 +649,25 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
 
         <View
           style={{
-            ...(isNative
-              ? { marginTop: 'auto', gap: uiTokens.space.sm, width: '100%' }
-              : { position: 'absolute', left: uiTokens.space.lg, right: uiTokens.space.lg, top: '60%', bottom: 52 }),
+            marginTop: 'auto',
+            gap: uiTokens.space.xs,
+            width: '100%',
           }}
         >
           <View style={isNative
-            ? { flexDirection: 'column', alignItems: 'stretch', gap: uiTokens.space.sm, width: '100%' }
-            : { flexDirection: 'row', alignItems: 'stretch', minHeight: 48 }}>
+            ? { flexDirection: 'column', alignItems: 'stretch', gap: uiTokens.space.xs, width: '100%' }
+            : { flexDirection: 'row', alignItems: 'stretch', gap: uiTokens.space.xs }}>
             {upgradeTarget && (
               <>
               <ActionButton
                 mode={isDark ? 'dark' : 'light'}
                 variant="ghost"
                 label={t({ id: 'passes.upgradeAction', message: 'Upgrade' })}
-                labelNumberOfLines={2}
                 onPress={openTicketPurchase}
                 disabled={!interactive}
                 accessibilityLabel={t({ id: `passes.upgradeTo.${upgradeTarget}`, message: `Upgrade to ${getPassTypeLabel(upgradeTarget)}` })}
-                leadingIcon={<MaterialIcons name="confirmation-number" size={18} color={colors.primary} />}
-                trailingIcon={<MaterialIcons name="chevron-right" size={20} color={colors.text.secondary} />}
+                leadingIcon={<MaterialIcons name="confirmation-number" size={16} color={colors.primary} />}
+                trailingIcon={<MaterialIcons name="chevron-right" size={16} color={colors.text.secondary} />}
                 style={isNative
                   ? { width: '100%', minHeight: 48, paddingHorizontal: uiTokens.space.md }
                   : { flex: 1, minHeight: 48, paddingHorizontal: uiTokens.space.sm }}
@@ -696,8 +678,7 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
               <ActionButton
                 mode={isDark ? 'dark' : 'light'}
                 variant="ghost"
-                label={t({ id: 'passes.moreDetails', message: 'More details' })}
-                labelNumberOfLines={2}
+                label={t({ id: 'passes.moreDetails', message: 'View details' })}
                 onPress={() => {
                   handleFlip();
                   router.push({
@@ -707,33 +688,26 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
                 }}
                 disabled={!interactive}
                 accessibilityLabel={t({ id: 'passes.viewFullDetails', message: 'View Full Details' })}
-                leadingIcon={<MaterialIcons name="description" size={18} color={colors.primary} />}
-                trailingIcon={<MaterialIcons name="chevron-right" size={20} color={colors.text.secondary} />}
+                leadingIcon={<MaterialIcons name="description" size={16} color={colors.primary} />}
+                trailingIcon={<MaterialIcons name="chevron-right" size={16} color={colors.text.secondary} />}
                 style={isNative
                   ? { width: '100%', minHeight: 48, paddingHorizontal: uiTokens.space.md }
                   : { flex: upgradeTarget ? 1 : 2, minHeight: 48, paddingHorizontal: uiTokens.space.sm }}
               />
           </View>
 
-          {upgradeTarget && (
-            <View style={{ alignSelf: 'center', minHeight: 28, maxWidth: '100%', width: isNative ? '100%' : undefined, flexDirection: isNative ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: uiTokens.space.xs }}>
-              <Text style={{ color: colors.text.secondary, fontSize: uiTokens.type.caption, textAlign: 'center' }}>
-                {t({ id: 'passes.claimExistingTicketPrompt', message: 'Already have a Business or VIP ticket?' })}{' '}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowUpgradeRequest(true)}
-                disabled={!interactive}
-                accessibilityRole="link"
-                accessibilityLabel={t({ id: 'passes.claimExistingTicket', message: 'Already have a Business or VIP ticket? Claim it here' })}
-                activeOpacity={0.72}
-                style={{ minHeight: 28, justifyContent: 'center' }}
-              >
-                <Text style={{ color: colors.text.secondary, fontSize: uiTokens.type.caption, fontWeight: '700', textDecorationLine: 'underline', textAlign: 'center' }}>
-                  {t({ id: 'passes.claimExistingTicketLink', message: 'Claim it here' })}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <TouchableOpacity
+            onPress={() => router.push('/claim' as any)}
+            disabled={!interactive}
+            accessibilityRole="link"
+            accessibilityLabel={t({ id: 'passes.claimExistingTicket', message: 'Claim an existing ticket' })}
+            activeOpacity={0.72}
+            style={{ minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: uiTokens.space.sm }}
+          >
+            <Text style={{ color: colors.text.secondary, fontSize: uiTokens.type.caption, fontWeight: '700', textAlign: 'center' }}>
+              {t({ id: 'passes.claimExistingTicketLink', message: 'Claim a ticket' })}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -920,14 +894,6 @@ const PassWalletCard: React.FC<PassWalletCardProps> = ({ pass, interactive = tru
         onClose={() => setShowShareModal(false)}
       />
 
-      {upgradeTarget && (
-        <PassUpgradeRequestModal
-          pass={pass}
-          requestedPassType={upgradeTarget}
-          visible={showUpgradeRequest}
-          onClose={() => setShowUpgradeRequest(false)}
-        />
-      )}
     </View>
   );
 };

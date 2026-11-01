@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Ticket einlösen",
+    "headline": "Scanne dein Originalticket",
+    "intro": "Du hast bereits ein Ticket gekauft? Scanne den Original-QR-Code, um einen HASHPASS-Pass anzufordern.",
+    "stepsHeading": "So funktioniert es",
+    "ticketTitle": "Halte dein Originalticket bereit",
+    "ticketBody": "Öffne die Ticket-E-Mail oder App auf einem anderen Bildschirm oder halte das ausgedruckte Ticket bereit.",
+    "scanTitle": "Scanne den QR-Code",
+    "scanBody": "Erlaube den Kamerazugriff und halte den QR-Code des Originaltickets in den Rahmen.",
+    "reviewTitle": "Zur Prüfung senden",
+    "reviewBody": "Wähle das Event und den Pass-Typ. Das Eventteam prüft dein Ticket, bevor es einen HASHPASS-Pass mit deinem Konto verknüpft.",
+    "singleClaimNote": "Scanne nur ein Ticket, das du selbst gekauft hast. Jedes Originalticket kann nur einmal eingelöst werden.",
+    "scanAction": "Ticket-QR scannen",
+    "scannerTitle": "Scanne dein Originalticket",
+    "scannerDescription": "Scanne den QR-Code aus der Ticket-E-Mail oder Ticket-App.",
+    "back": "Zurück"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Ticket einlösen"
+  },
   "newsletter": {
     "title": "Abonnieren Sie unseren Newsletter",
     "subtitle": "Treten Sie unserem Newsletter bei, um die neuesten Updates zu erhalten",

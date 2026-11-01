@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "티켓 등록하기",
+    "headline": "구매한 티켓의 QR 코드를 스캔하세요",
+    "intro": "이미 티켓을 구매하셨나요? 원본 QR 코드를 스캔해 HASHPASS 패스를 요청하세요.",
+    "stepsHeading": "진행 방법",
+    "ticketTitle": "원본 티켓을 준비하세요",
+    "ticketBody": "티켓 이메일이나 앱을 다른 화면에서 열거나, 인쇄된 티켓을 준비하세요.",
+    "scanTitle": "티켓 QR 코드를 스캔하세요",
+    "scanBody": "카메라 접근을 허용하고 원본 티켓의 QR 코드를 프레임 안에 맞춰 주세요.",
+    "reviewTitle": "확인을 요청하세요",
+    "reviewBody": "이벤트와 패스 종류를 선택하세요. 이벤트 팀이 티켓을 확인한 뒤 HASHPASS 패스를 계정에 연결합니다.",
+    "singleClaimNote": "직접 구매한 티켓만 스캔하세요. 원본 티켓 하나는 한 번만 등록할 수 있습니다.",
+    "scanAction": "티켓 QR 스캔",
+    "scannerTitle": "원본 티켓을 스캔하세요",
+    "scannerDescription": "티켓 이메일이나 앱에 있는 QR 코드를 스캔하세요.",
+    "back": "뒤로"
+  },
+  "passes": {
+    "claimExistingTicketLink": "티켓 등록"
+  },
   "newsletter": {
     "title": "뉴스레터 구독",
     "subtitle": "최신 소식을 받기 위해 뉴스레터에 가입하세요",

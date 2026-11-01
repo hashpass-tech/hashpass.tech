@@ -1,4 +1,24 @@
 {
+  "claimTickets": {
+    "title": "Reclama una entrada",
+    "headline": "Escanea tu entrada original",
+    "intro": "¿Ya compraste una entrada? Escanea su código QR original para solicitar un pase de HASHPASS.",
+    "stepsHeading": "Cómo funciona",
+    "ticketTitle": "Ten lista tu entrada original",
+    "ticketBody": "Abre el correo o la app de la entrada en otra pantalla, o ten a mano la entrada impresa.",
+    "scanTitle": "Escanea su código QR",
+    "scanBody": "Permite el acceso a la cámara y coloca el QR de la entrada original dentro del marco.",
+    "reviewTitle": "Envíala para revisión",
+    "reviewBody": "Elige el evento y el tipo de pase. El equipo del evento verificará la entrada antes de vincular un pase de HASHPASS a tu cuenta.",
+    "singleClaimNote": "Escanea solo una entrada que hayas comprado. Cada entrada original se puede reclamar una sola vez.",
+    "scanAction": "Escanear QR de entrada",
+    "scannerTitle": "Escanea tu entrada original",
+    "scannerDescription": "Escanea el QR del correo o la app de tu entrada.",
+    "back": "Volver"
+  },
+  "passes": {
+    "claimExistingTicketLink": "Reclamar entrada"
+  },
   "newsletter": {
     "title": "Suscríbete a nuestro boletín",
     "subtitle": "Únete a nuestro boletín para las últimas novedades",
