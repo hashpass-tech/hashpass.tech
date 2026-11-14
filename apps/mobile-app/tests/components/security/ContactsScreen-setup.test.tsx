@@ -3,12 +3,13 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
 import ContactsScreen from '../../../components/contacts/ContactsScreen';
 
+jest.mock('../../../components/security/AuthenticatorFlow', () => ({ __esModule: true, default: 'AuthenticatorFlow' }));
 let mockUser: { id: string } | null = { id: 'alice' };
 let mockAuthLoading = false;
 let mockSetup: any;
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}) }));
-jest.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: mockUser, isLoading: mockAuthLoading }) }));
+jest.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ user: mockUser, dbUserId: mockUser?.id, isLoading: mockAuthLoading }) }));
 jest.mock('../../../hooks/useTheme', () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock('../../../hooks/useContacts', () => ({ useContacts: () => ({ snapshot: null, loading: false, busy: false, error: null, act: jest.fn(), reload: jest.fn() }) }));
 const mockUseSetup = jest.fn((_id: string | null) => mockSetup);
